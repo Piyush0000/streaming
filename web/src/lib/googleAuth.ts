@@ -4,19 +4,18 @@
  * a "Sign in with Google" button, replacing the older popup-based OAuth2
  * implicit flow (response_type=token id_token against /o/oauth2/v2/auth).
  *
- * Why the switch: the old implicit-flow popup kept failing with
- * redirect_uri_mismatch for stream.lr21.org even once the URI was correctly
- * registered and given time to propagate — this matches Google's ongoing
- * lockdown of the legacy implicit grant for newer/updated redirect URIs.
- * GIS sidesteps the problem entirely: it only checks the page's origin
- * against "Authorized JavaScript origins" (already correctly configured),
- * never a redirect URI, and delivers the ID token via postMessage/FedCM
- * instead of a redirect round-trip.
+ * This uses its OWN dedicated OAuth client (not LR21's), created directly
+ * for stream.lr21.org. LR21's shared client turned out to be flagged by
+ * Google's project checkup ("not configured to use secure OAuth flows"),
+ * which silently blocked sign-in from any newly-added origin on it no
+ * matter how correctly that origin was registered — a dedicated client
+ * sidesteps that entirely, and keeps this product's auth fully independent
+ * of LR21's as the architecture always intended.
  */
 import { loginWithGoogle } from './api';
 import type { AuthTokens } from './api';
 
-const GOOGLE_CLIENT_ID = '822203960978-uqdm345u3tn4a6qfnqss3bl08r40u6nf.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '206166506938-3dr1b89rl2n8amjtor6naqua5diitd1l.apps.googleusercontent.com';
 const GIS_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 
 export class PopupBlockedError extends Error {

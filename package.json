@@ -1,0 +1,21 @@
+{
+  "name": "streaming-platform",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "services/*",
+    "packages/*",
+    "web"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "dev:auth": "npm run dev -w services/auth-service",
+    "dev:api": "npm run dev -w services/api-service",
+    "dev:chat": "npm run dev -w services/chat-service",
+    "dev:media": "npm run dev -w services/media-service",
+    "dev:web": "npm run dev -w web"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}

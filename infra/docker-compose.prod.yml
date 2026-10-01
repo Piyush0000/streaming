@@ -1,0 +1,136 @@
+x-common-env: &common-env
+  NODE_ENV: production
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # No host port published — only reachable from other containers on this
+    # compose network. Nothing outside the VPS (or even outside this stack)
+    # should ever be able to reach Postgres directly.
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Same reasoning as postgres — internal-only.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auth-service:
+    image: ${REGISTRY_PREFIX}auth-service:${IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: services/auth-service/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      PORT: ${AUTH_SERVICE_PORT}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS}
+    # No host port — gateway reaches it over the compose network by service name.
+
+  api-service:
+    image: ${REGISTRY_PREFIX}api-service:${IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: services/api-service/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      PORT: ${API_SERVICE_PORT}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+
+  chat-service:
+    image: ${REGISTRY_PREFIX}chat-service:${IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: services/chat-service/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      PORT: ${CHAT_SERVICE_PORT}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+
+  media-service:
+    image: ${REGISTRY_PREFIX}media-service:${IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: services/media-service/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      PORT: ${MEDIA_SERVICE_PORT}
+      REDIS_URL: redis://redis:6379
+      MEDIASOUP_LISTEN_IP: 0.0.0.0
+      MEDIASOUP_ANNOUNCED_IP: ${MEDIASOUP_ANNOUNCED_IP}
+      MEDIASOUP_MIN_PORT: ${MEDIASOUP_MIN_PORT}
+      MEDIASOUP_MAX_PORT: ${MEDIASOUP_MAX_PORT}
+    ports:
+      # Real WebRTC media (RTP/RTCP) has to reach browsers directly — this
+      # is the one thing nginx can't proxy. Signaling (the /ws/media HTTP
+      # upgrade) still goes through the gateway like everything else; only
+      # the raw media port range is published straight to the host.
+      # NOTE: this range must stay clear of whatever else is already using
+      # UDP ports on this VPS (checked: 40000-40199/udp is already claimed
+      # by the unrelated "dialyn" project here — this range avoids it).
+      - "${MEDIASOUP_MIN_PORT}-${MEDIASOUP_MAX_PORT}:${MEDIASOUP_MIN_PORT}-${MEDIASOUP_MAX_PORT}/udp"
+      - "${MEDIASOUP_MIN_PORT}-${MEDIASOUP_MAX_PORT}:${MEDIASOUP_MIN_PORT}-${MEDIASOUP_MAX_PORT}/tcp"
+
+  gateway:
+    image: ${REGISTRY_PREFIX}gateway:${IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: services/gateway/Dockerfile
+      args:
+        VITE_AUTH_BASE_URL: /api/auth
+        VITE_API_BASE_URL: /api
+        VITE_CHAT_WS_URL: /
+        VITE_CHAT_WS_PATH: /ws/chat/socket.io
+        VITE_MEDIA_WS_URL: /ws/media
+    restart: unless-stopped
+    depends_on:
+      - auth-service
+      - api-service
+      - chat-service
+      - media-service
+    ports:
+      # Bound to localhost only — the VPS's system nginx (already handling
+      # TLS for lr21.org/api.lr21.org) terminates TLS for stream.lr21.org
+      # and reverse-proxies here. This container is never directly
+      # internet-facing.
+      - "127.0.0.1:${GATEWAY_PORT}:8080"
+
+volumes:
+  postgres-data:

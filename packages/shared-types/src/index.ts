@@ -16,6 +16,13 @@ export interface Channel {
   createdAt: string;
 }
 
+export interface MessageAttachment {
+  url: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+}
+
 export interface Message {
   id: string;
   channelId: string;
@@ -23,6 +30,7 @@ export interface Message {
   username: string;
   content: string;
   createdAt: string;
+  attachment?: MessageAttachment | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -59,6 +67,7 @@ export interface ChatJoinPayload {
 export interface ChatSendPayload {
   channelId: string;
   content: string;
+  attachment?: MessageAttachment | null;
 }
 
 /** Server -> client: history sent right after a successful join. */
@@ -89,7 +98,12 @@ export type MediaClientRequestType =
   | 'produce'
   | 'consume'
   | 'resume-consumer'
+  | 'close-producer'
   | 'leave-room';
+
+/** A peer may have a mic-audio producer AND a screen-share video producer active at once. */
+export type ProducerKind = 'audio' | 'video';
+export type ProducerSource = 'mic' | 'screen';
 
 export interface MediaRequest<T = unknown> {
   id: string;
@@ -120,9 +134,15 @@ export interface JoinRoomPayload {
   channelId: string;
 }
 
+export interface PeerProducerInfo {
+  id: string;
+  kind: ProducerKind;
+  source: ProducerSource;
+}
+
 export interface JoinRoomResult {
   routerRtpCapabilities: unknown; // mediasoup RtpCapabilities
-  peers: { peerId: string; username: string; producerIds: string[] }[];
+  peers: { peerId: string; username: string; producers: PeerProducerInfo[] }[];
 }
 
 export interface CreateWebRtcTransportPayload {
@@ -143,8 +163,10 @@ export interface ConnectWebRtcTransportPayload {
 
 export interface ProducePayload {
   transportId: string;
-  kind: 'audio';
+  kind: ProducerKind;
   rtpParameters: unknown;
+  /** Distinguishes a mic-audio producer from a screen-share video producer on the same peer. */
+  source: ProducerSource;
 }
 
 export interface ProduceResult {
@@ -160,14 +182,21 @@ export interface ConsumePayload {
 export interface ConsumeResult {
   id: string; // consumer id
   producerId: string;
-  kind: 'audio';
+  kind: ProducerKind;
+  source: ProducerSource;
   rtpParameters: unknown;
+}
+
+export interface CloseProducerPayload {
+  producerId: string;
 }
 
 export interface NewProducerNotification {
   peerId: string;
   username: string;
   producerId: string;
+  kind: ProducerKind;
+  source: ProducerSource;
 }
 
 export interface PeerJoinedNotification {

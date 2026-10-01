@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Message } from '@streaming/shared-types';
-import { MessageSquare } from 'lucide-react';
+import type { Message, MessageAttachment } from '@streaming/shared-types';
+import { File as FileIcon, MessageSquare } from 'lucide-react';
 import Avatar from './Avatar';
 import { fullTimestamp, relativeTime } from '../lib/format';
+import { resolveAttachmentUrl } from '../lib/api';
 import { FullPageSpinner } from './Spinner';
 
 interface Group {
@@ -34,10 +35,13 @@ export default function MessageList({
   messages,
   currentUserId,
   loading,
+  onAtBottomChange,
 }: {
   messages: Message[];
   currentUserId: string;
   loading: boolean;
+  /** Reports whether the view is scrolled to (near) the latest message — used to gate the new-message sound. */
+  onAtBottomChange?: (atBottom: boolean) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stuckToBottomRef = useRef(true);
@@ -50,6 +54,7 @@ export default function MessageList({
     const atBottom = distanceFromBottom < 80;
     stuckToBottomRef.current = atBottom;
     setShowJumpToLatest(!atBottom);
+    onAtBottomChange?.(atBottom);
   }
 
   useEffect(() => {
@@ -118,14 +123,49 @@ function MessageGroupRow({ group, isSelf }: { group: Group; isSelf: boolean }) {
             {relativeTime(first.createdAt)}
           </span>
         </div>
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col gap-1.5">
           {group.messages.map((m) => (
-            <p key={m.id} className="whitespace-pre-wrap break-words text-sm leading-relaxed text-text-primary/90">
-              {m.content}
-            </p>
+            <div key={m.id} className="flex flex-col gap-1.5">
+              {m.content && (
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-text-primary/90">
+                  {m.content}
+                </p>
+              )}
+              {m.attachment && <AttachmentView attachment={m.attachment} />}
+            </div>
           ))}
         </div>
       </div>
     </div>
+  );
+}
+
+function AttachmentView({ attachment }: { attachment: MessageAttachment }) {
+  const url = resolveAttachmentUrl(attachment);
+  const isImage = attachment.mimeType.startsWith('image/');
+
+  if (isImage) {
+    return (
+      <a href={url} target="_blank" rel="noreferrer">
+        <img
+          src={url}
+          alt={attachment.filename}
+          className="max-h-[300px] max-w-full rounded-lg border border-border object-contain"
+        />
+      </a>
+    );
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      download={attachment.filename}
+      className="flex w-fit items-center gap-2 rounded-lg border border-border bg-hover/60 px-3 py-2 text-sm text-text-primary hover:bg-hover"
+    >
+      <FileIcon size={16} className="shrink-0 text-text-muted" />
+      <span className="truncate">{attachment.filename}</span>
+    </a>
   );
 }

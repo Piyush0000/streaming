@@ -70,11 +70,14 @@ export function createSocketServer(httpServer: HttpServer): Server {
 
     socket.on('chat:send', async (payload: ChatSendPayload) => {
       try {
-        if (!payload?.channelId || !payload?.content?.trim()) {
-          socket.emit('chat:error', { message: 'channelId and content required' } satisfies ChatErrorPayload);
+        const trimmedContent = payload?.content?.trim() ?? '';
+        // A message needs text OR an attachment — an image-only message
+        // with no caption is a normal case once uploads exist.
+        if (!payload?.channelId || (!trimmedContent && !payload.attachment)) {
+          socket.emit('chat:error', { message: 'channelId and content or attachment required' } satisfies ChatErrorPayload);
           return;
         }
-        if (payload.content.length > 2000) {
+        if (trimmedContent.length > 2000) {
           socket.emit('chat:error', { message: 'message too long' } satisfies ChatErrorPayload);
           return;
         }
@@ -83,7 +86,8 @@ export function createSocketServer(httpServer: HttpServer): Server {
           channelId: payload.channelId,
           userId: user.sub,
           username: user.username,
-          content: payload.content.trim(),
+          content: trimmedContent,
+          attachment: payload.attachment,
         });
 
         // Fan out via Redis Streams rather than emitting directly, so that

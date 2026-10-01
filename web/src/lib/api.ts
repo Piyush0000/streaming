@@ -1,7 +1,8 @@
-import type { Channel } from '@streaming/shared-types';
+import type { Channel, MessageAttachment } from '@streaming/shared-types';
 
 const AUTH_BASE_URL = import.meta.env.VITE_AUTH_BASE_URL ?? '/api/auth';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
+const UPLOADS_BASE_URL = import.meta.env.VITE_UPLOADS_BASE_URL ?? '/api/uploads';
 
 export interface AuthUser {
   id: string;
@@ -68,6 +69,31 @@ export async function listChannels(accessToken: string): Promise<Channel[]> {
   });
   const body = await parseJsonOrThrow(res);
   return body.channels;
+}
+
+/**
+ * `attachment.url` (as stored/returned by chat-service) is that service's
+ * own route, e.g. "/uploads/<file>" — not necessarily where it's publicly
+ * reachable (in prod the gateway proxies it under /api/uploads/ instead).
+ * Resolve the actual browser-fetchable URL from UPLOADS_BASE_URL + filename
+ * so this works both hitting chat-service directly (dev) and through the
+ * gateway (prod) without the backend needing to know which.
+ */
+export function resolveAttachmentUrl(attachment: MessageAttachment): string {
+  const filename = attachment.url.split('/').pop();
+  return `${UPLOADS_BASE_URL}/${filename}`;
+}
+
+export async function uploadFile(accessToken: string, file: File): Promise<MessageAttachment> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(UPLOADS_BASE_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: form,
+  });
+  const body = await parseJsonOrThrow(res);
+  return body.attachment;
 }
 
 export async function createChannel(

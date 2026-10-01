@@ -20,6 +20,12 @@ COPY --from=build /repo/services/chat-service/migrations ./services/chat-service
 
 RUN npm install --workspaces --include-workspace-root --omit=dev --ignore-scripts
 
+# Pre-create the uploads dir owned by the non-root "app" user — when the
+# named volume (see docker-compose) is empty on first run, Docker seeds it
+# from this directory's existing contents/ownership, so the app can write to
+# it once USER app drops root.
+RUN mkdir -p /app/services/chat-service/uploads && chown -R app:app /app/services/chat-service/uploads
+
 USER app
 WORKDIR /app/services/chat-service
 EXPOSE 4003

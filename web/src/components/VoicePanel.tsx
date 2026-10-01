@@ -1,4 +1,4 @@
-import { Mic, MicOff, PhoneOff, Radio, Volume2 } from 'lucide-react';
+import { Mic, MicOff, Monitor, MonitorOff, PhoneOff, Radio, Volume2 } from 'lucide-react';
 import type { RemotePeerAudio } from '../lib/media';
 import Avatar from './Avatar';
 import Spinner from './Spinner';
@@ -17,6 +17,10 @@ export default function VoicePanel({
   onJoin,
   onLeave,
   onToggleMute,
+  screenShareSupported,
+  isSharingScreen,
+  onStartScreenShare,
+  onStopScreenShare,
 }: {
   voiceState: VoiceState;
   voiceError: string | null;
@@ -27,6 +31,10 @@ export default function VoicePanel({
   onJoin: () => void;
   onLeave: () => void;
   onToggleMute: () => void;
+  screenShareSupported: boolean;
+  isSharingScreen: boolean;
+  onStartScreenShare: () => void;
+  onStopScreenShare: () => void;
 }) {
   const connected = voiceState === 'connected';
   const connecting = voiceState === 'connecting';
@@ -63,27 +71,43 @@ export default function VoicePanel({
             )}
           </button>
         ) : (
-          <div className="flex gap-2">
-            <button
-              onClick={onToggleMute}
-              className={cx(
-                'flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-colors',
-                muted
-                  ? 'bg-danger/15 text-danger hover:bg-danger/25'
-                  : 'bg-hover text-text-primary hover:bg-border'
-              )}
-            >
-              {muted ? <MicOff size={16} /> : <Mic size={16} />}
-              {muted ? 'Unmute' : 'Mute'}
-            </button>
-            <button
-              onClick={onLeave}
-              className="flex items-center justify-center gap-2 rounded-lg bg-danger/15 px-3 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/25"
-              aria-label="Leave voice"
-              title="Leave voice"
-            >
-              <PhoneOff size={16} />
-            </button>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <button
+                onClick={onToggleMute}
+                className={cx(
+                  'flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-colors',
+                  muted
+                    ? 'bg-danger/15 text-danger hover:bg-danger/25'
+                    : 'bg-hover text-text-primary hover:bg-border'
+                )}
+              >
+                {muted ? <MicOff size={16} /> : <Mic size={16} />}
+                {muted ? 'Unmute' : 'Mute'}
+              </button>
+              <button
+                onClick={onLeave}
+                className="flex items-center justify-center gap-2 rounded-lg bg-danger/15 px-3 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/25"
+                aria-label="Leave voice"
+                title="Leave voice"
+              >
+                <PhoneOff size={16} />
+              </button>
+            </div>
+            {screenShareSupported && (
+              <button
+                onClick={isSharingScreen ? onStopScreenShare : onStartScreenShare}
+                className={cx(
+                  'flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-colors',
+                  isSharingScreen
+                    ? 'bg-danger/15 text-danger hover:bg-danger/25'
+                    : 'bg-hover text-text-primary hover:bg-border'
+                )}
+              >
+                {isSharingScreen ? <MonitorOff size={16} /> : <Monitor size={16} />}
+                {isSharingScreen ? 'Stop sharing' : 'Share screen'}
+              </button>
+            )}
           </div>
         )}
       </div>

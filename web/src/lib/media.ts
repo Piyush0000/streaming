@@ -1,5 +1,5 @@
 import { Device } from 'mediasoup-client';
-import type { Transport } from 'mediasoup-client/types';
+import type { Transport, Producer } from 'mediasoup-client/types';
 import type {
   MediaRequest,
   MediaResponse,
@@ -11,6 +11,8 @@ import type {
   NewProducerNotification,
   PeerJoinedNotification,
   PeerLeftNotification,
+  ProducerClosedNotification,
+  ProducerKind,
 } from '@streaming/shared-types';
 
 const MEDIA_WS_URL = import.meta.env.VITE_MEDIA_WS_URL ?? '/ws/media';
@@ -30,15 +32,33 @@ export interface RemotePeerAudio {
   stream: MediaStream;
 }
 
+export interface RemotePeerVideo {
+  peerId: string;
+  username: string;
+  stream: MediaStream;
+  producerId: string;
+}
+
 export interface VoiceClientCallbacks {
   onRemoteStream: (peer: RemotePeerAudio) => void;
+  onRemoteScreenShare: (peer: RemotePeerVideo) => void;
+  onRemoteScreenShareEnded: (peerId: string) => void;
+  /** A peer joined this voice room after we did (not the initial roster on our own join). */
+  onPeerJoined: (peerId: string, username: string) => void;
   onPeerLeft: (peerId: string) => void;
   onError?: (message: string) => void;
 }
 
+interface ConsumedProducerMeta {
+  peerId: string;
+  kind: ProducerKind;
+}
+
 /**
  * Thin client around the media-service signaling WebSocket + mediasoup-client,
- * following the standard mediasoup-demo produce/consume flow, minimal audio-only.
+ * following the standard mediasoup-demo produce/consume flow. Audio (mic) is
+ * always produced on join; a second, optional video producer carries a
+ * screen-share when the user starts one.
  */
 export class VoiceClient {
   private ws: WebSocket;
@@ -47,7 +67,10 @@ export class VoiceClient {
   private recvTransport?: Transport;
   private pendingRequests = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>();
   private localStream?: MediaStream;
+  private screenStream?: MediaStream;
+  private screenProducer?: Producer;
   private consumedProducers = new Set<string>();
+  private consumedProducerMeta = new Map<string, ConsumedProducerMeta>();
 
   private constructor(ws: WebSocket, private callbacks: VoiceClientCallbacks) {
     this.ws = ws;
@@ -84,14 +107,27 @@ export class VoiceClient {
         break;
       }
       case 'peer-joined': {
-        const { username } = msg.payload as PeerJoinedNotification;
-        // eslint-disable-next-line no-console
-        console.log(`${username} joined the voice channel`);
+        const { peerId, username } = msg.payload as PeerJoinedNotification;
+        this.callbacks.onPeerJoined(peerId, username);
         break;
       }
       case 'peer-left': {
         const { peerId } = msg.payload as PeerLeftNotification;
+        // A peer's screen-share tile (if any) might not get an explicit
+        // producer-closed notification before this depending on message
+        // ordering, so clean it up defensively here too.
+        this.callbacks.onRemoteScreenShareEnded(peerId);
         this.callbacks.onPeerLeft(peerId);
+        break;
+      }
+      case 'producer-closed': {
+        const { producerId, peerId } = msg.payload as ProducerClosedNotification;
+        const meta = this.consumedProducerMeta.get(producerId);
+        this.consumedProducerMeta.delete(producerId);
+        this.consumedProducers.delete(producerId);
+        if (meta?.kind === 'video') {
+          this.callbacks.onRemoteScreenShareEnded(peerId);
+        }
         break;
       }
       default:
@@ -121,16 +157,16 @@ export class VoiceClient {
 
     await this.createSendTransport();
     const track = this.localStream.getAudioTracks()[0];
-    await this.sendTransport!.produce({ track });
+    await this.sendTransport!.produce({ track, appData: { source: 'mic' } });
 
     // Consume everyone who was already publishing before we joined.
     for (const peer of peers) {
-      for (const producerId of peer.producerIds) {
-        this.consume(producerId, peer.peerId, peer.username).catch((err) => this.callbacks.onError?.(err.message));
+      for (const producer of peer.producers) {
+        this.consume(producer.id, peer.peerId, peer.username).catch((err) => this.callbacks.onError?.(err.message));
       }
     }
 
-    return peers;
+    return peers.map((p) => ({ peerId: p.peerId, username: p.username }));
   }
 
   private async createSendTransport() {
@@ -150,8 +186,9 @@ export class VoiceClient {
         .catch(errback);
     });
 
-    transport.on('produce', ({ kind, rtpParameters }, callback, errback) => {
-      this.request<ProduceResult>('produce', { transportId: transport.id, kind, rtpParameters })
+    transport.on('produce', ({ kind, rtpParameters, appData }, callback, errback) => {
+      const source = (appData as { source?: 'mic' | 'screen' })?.source ?? 'mic';
+      this.request<ProduceResult>('produce', { transportId: transport.id, kind, rtpParameters, source })
         .then(({ id }) => callback({ id }))
         .catch(errback);
     });
@@ -202,8 +239,14 @@ export class VoiceClient {
 
     await this.request('resume-consumer', { consumerId: consumer.id });
 
+    this.consumedProducerMeta.set(producerId, { peerId, kind: result.kind });
+
     const stream = new MediaStream([consumer.track]);
-    this.callbacks.onRemoteStream({ peerId, username, stream });
+    if (result.kind === 'video' && result.source === 'screen') {
+      this.callbacks.onRemoteScreenShare({ peerId, username, stream, producerId });
+    } else {
+      this.callbacks.onRemoteStream({ peerId, username, stream });
+    }
   }
 
   /** Mute/unmute the local mic by toggling the outgoing audio track — additive, doesn't touch signaling. */
@@ -213,12 +256,59 @@ export class VoiceClient {
     });
   }
 
+  get isScreenSharing(): boolean {
+    return !!this.screenProducer;
+  }
+
+  /**
+   * Starts a screen-share: grabs a display-media video track and produces it
+   * on the existing send transport (one extra producer alongside the mic).
+   * The browser's own share-picker can be cancelled by the user, which
+   * rejects getDisplayMedia's promise — callers should treat that as a
+   * silent no-op, not an error (same pattern as other user-cancel paths in
+   * this codebase).
+   */
+  async startScreenShare(): Promise<MediaStream> {
+    if (!this.sendTransport) throw new Error('not connected to voice');
+    if (this.screenProducer) return this.screenStream!;
+
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    const track = stream.getVideoTracks()[0];
+    this.screenStream = stream;
+    this.screenProducer = await this.sendTransport.produce({ track, appData: { source: 'screen' } });
+
+    // Fires when the user stops sharing via the browser's own "Stop sharing"
+    // chrome/toolbar, bypassing our button entirely.
+    track.addEventListener('ended', () => {
+      this.stopScreenShare().catch(() => {});
+    });
+
+    return stream;
+  }
+
+  async stopScreenShare(): Promise<void> {
+    const producer = this.screenProducer;
+    this.screenProducer = undefined;
+    if (producer && !producer.closed) {
+      const producerId = producer.id;
+      producer.close();
+      try {
+        await this.request('close-producer', { producerId });
+      } catch {
+        // best-effort — server will also clean this up when the peer leaves
+      }
+    }
+    this.screenStream?.getTracks().forEach((t) => t.stop());
+    this.screenStream = undefined;
+  }
+
   async leave() {
     try {
       await this.request('leave-room');
     } catch {
       // best-effort
     }
+    await this.stopScreenShare();
     this.localStream?.getTracks().forEach((t) => t.stop());
     this.sendTransport?.close();
     this.recvTransport?.close();

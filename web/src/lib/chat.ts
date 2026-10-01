@@ -3,6 +3,7 @@ import type {
   ChatHistoryPayload,
   ChatMessagePayload,
   ChatErrorPayload,
+  MessageAttachment,
 } from '@streaming/shared-types';
 
 const CHAT_WS_URL = import.meta.env.VITE_CHAT_WS_URL ?? '/';
@@ -37,6 +38,11 @@ export function leaveChannel(socket: Socket, channelId: string) {
   socket.emit('chat:leave', { channelId });
 }
 
-export function sendMessage(socket: Socket, channelId: string, content: string) {
-  socket.emit('chat:send', { channelId, content });
+export function sendMessage(
+  socket: Socket,
+  channelId: string,
+  content: string,
+  attachment?: MessageAttachment | null
+) {
+  socket.emit('chat:send', { channelId, content, attachment });
 }

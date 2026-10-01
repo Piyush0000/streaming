@@ -4,6 +4,7 @@ import pinoHttp from 'pino-http';
 import { logger } from './logger';
 import { pingDb } from './db';
 import { pingRedis } from './redis';
+import { uploadsRouter } from './routes/uploads';
 
 export const app = express();
 
@@ -12,6 +13,8 @@ app.use(express.json());
 app.use(pinoHttp({ logger }));
 
 app.get('/healthz', (_req, res) => res.status(200).json({ status: 'ok' }));
+
+app.use('/uploads', uploadsRouter);
 
 app.get('/readyz', async (_req, res) => {
   try {

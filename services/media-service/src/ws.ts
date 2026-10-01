@@ -16,10 +16,12 @@ import type {
   ProduceResult,
   ConsumePayload,
   ConsumeResult,
+  CloseProducerPayload,
   NewProducerNotification,
   PeerJoinedNotification,
   PeerLeftNotification,
   ProducerClosedNotification,
+  ProducerSource,
 } from '@streaming/shared-types';
 import { env } from './env';
 import { logger } from './logger';
@@ -49,6 +51,20 @@ function fail(id: string, error: string): MediaResponse {
   return { id, ok: false, error };
 }
 
+/** The producer's `source` ('mic' | 'screen') is carried in its mediasoup appData. */
+function producerSource(producer: { appData: Record<string, unknown> }): ProducerSource {
+  return (producer.appData.source as ProducerSource | undefined) ?? 'mic';
+}
+
+/** Producers live per-peer; look one up (and its owning peer) by id across the room. */
+function findProducer(room: Room, producerId: string) {
+  for (const peer of room.peers.values()) {
+    const producer = peer.producers.get(producerId);
+    if (producer) return { producer, ownerPeerId: peer.id };
+  }
+  return undefined;
+}
+
 async function handleJoinRoom(conn: Connection, payload: JoinRoomPayload): Promise<JoinRoomResult> {
   const room = await roomManager.getOrCreateRoom(payload.channelId);
   const peer: Peer = {
@@ -62,7 +78,11 @@ async function handleJoinRoom(conn: Connection, payload: JoinRoomPayload): Promi
   const existingPeers = Array.from(room.peers.values()).map((p) => ({
     peerId: p.id,
     username: p.username,
-    producerIds: Array.from(p.producers.keys()),
+    producers: Array.from(p.producers.values()).map((producer) => ({
+      id: producer.id,
+      kind: producer.kind,
+      source: producerSource(producer),
+    })),
   }));
 
   roomManager.addPeer(room, peer);
@@ -178,13 +198,33 @@ export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
           }
 
           case 'produce': {
-            const { transportId, kind, rtpParameters } = req.payload as ProducePayload;
+            const { transportId, kind, rtpParameters, source } = req.payload as ProducePayload;
             const room = conn.room;
             const peer = room?.peers.get(conn.peerId);
             const transport = peer?.transports.get(transportId);
             if (!room || !peer || !transport) throw new Error('transport not found');
 
-            const producer = await transport.produce({ kind, rtpParameters: rtpParameters as any });
+            // Phase 1: one screen-share producer per user at a time. If they
+            // already have one (e.g. re-sharing without the old one tearing
+            // down cleanly), replace it rather than stacking producers.
+            if (source === 'screen') {
+              for (const existing of peer.producers.values()) {
+                if (producerSource(existing) === 'screen') {
+                  // Closing triggers each consumer's own 'producerclose' event
+                  // (same in-process flow as the explicit close-producer
+                  // request below), which notifies other peers — no need to
+                  // broadcast again here.
+                  existing.close();
+                  peer.producers.delete(existing.id);
+                }
+              }
+            }
+
+            const producer = await transport.produce({
+              kind,
+              rtpParameters: rtpParameters as any,
+              appData: { source },
+            });
             peer.producers.set(producer.id, producer);
 
             producer.on('transportclose', () => {
@@ -197,6 +237,8 @@ export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
                 peerId: conn.peerId,
                 username: conn.username,
                 producerId: producer.id,
+                kind: producer.kind,
+                source: producerSource(producer),
               } satisfies NewProducerNotification,
             });
 
@@ -211,6 +253,10 @@ export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
             const peer = room?.peers.get(conn.peerId);
             const transport = peer?.transports.get(transportId);
             if (!room || !peer || !transport) throw new Error('transport not found');
+
+            const found = findProducer(room, producerId);
+            if (!found) throw new Error('producer not found');
+            const { producer: sourceProducer, ownerPeerId } = found;
 
             if (!room.router.canConsume({ producerId, rtpCapabilities: rtpCapabilities as any })) {
               throw new Error('cannot consume this producer with given rtpCapabilities');
@@ -227,14 +273,15 @@ export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
               peer.consumers.delete(consumer.id);
               send(ws, {
                 notification: 'producer-closed',
-                payload: { producerId, peerId: conn.peerId } satisfies ProducerClosedNotification,
+                payload: { producerId, peerId: ownerPeerId } satisfies ProducerClosedNotification,
               });
             });
 
             const result: ConsumeResult = {
               id: consumer.id,
               producerId,
-              kind: 'audio',
+              kind: consumer.kind,
+              source: producerSource(sourceProducer),
               rtpParameters: consumer.rtpParameters,
             };
             send(ws, ok(req.id, result));
@@ -247,6 +294,20 @@ export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
             const consumer = peer?.consumers.get(consumerId);
             if (!consumer) throw new Error('consumer not found');
             await consumer.resume();
+            send(ws, ok(req.id));
+            break;
+          }
+
+          case 'close-producer': {
+            const { producerId } = req.payload as CloseProducerPayload;
+            const peer = conn.room?.peers.get(conn.peerId);
+            const producer = peer?.producers.get(producerId);
+            if (!peer || !producer) throw new Error('producer not found');
+            // Closing fires 'producerclose' on every consumer of this producer
+            // (in-process, same flow as peer-leave), which notifies the rest
+            // of the room — nothing else to broadcast from here.
+            producer.close();
+            peer.producers.delete(producerId);
             send(ws, ok(req.id));
             break;
           }

@@ -19,6 +19,13 @@ const mediaCodecs = [
     clockRate: 48000,
     channels: 2,
   },
+  // VP8 for screen-share video: widely supported, royalty-free, no licensing
+  // complexity (unlike H264). Phase 1 only needs one video codec.
+  {
+    kind: 'video',
+    mimeType: 'video/VP8',
+    clockRate: 90000,
+  },
 ] as unknown as mediasoup.types.RtpCodecCapability[];
 
 export interface Peer {

@@ -49,7 +49,7 @@ export default function AuthPage() {
             <Waves size={24} />
           </div>
           <h1 className="text-xl font-bold text-text-primary">
-            Orbit<span className="text-accent">Trade</span>
+            ELON<span className="text-accent">IX</span>
           </h1>
           <p className="mt-1 text-sm text-text-secondary">
             Voice &amp; chat for traders, built for speed.

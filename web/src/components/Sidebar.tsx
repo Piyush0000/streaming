@@ -75,7 +75,7 @@ export default function Sidebar({
       >
         <div className="flex h-14 items-center justify-between border-b border-border px-4">
           <span className="truncate text-sm font-bold tracking-wide text-text-primary">
-            Orbit<span className="text-accent">Trade</span>
+            ELON<span className="text-accent">IX</span>
           </span>
           <button
             onClick={onCloseMobile}

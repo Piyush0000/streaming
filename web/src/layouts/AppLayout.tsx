@@ -24,7 +24,7 @@ export default function AppLayout() {
             <Menu size={20} />
           </button>
           <span className="ml-2 text-sm font-semibold">
-            Orbit<span className="text-accent">Trade</span>
+            ELON<span className="text-accent">IX</span>
           </span>
         </div>
 

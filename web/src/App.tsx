@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { SessionProvider, useSession } from './context/SessionContext';
 import { FullPageSpinner } from './components/Spinner';
+import LandingPage from './pages/LandingPage';
 import AuthPage from './pages/AuthPage';
 import ChannelsPage from './pages/ChannelsPage';
 import ChannelPage from './pages/ChannelPage';
@@ -36,6 +37,14 @@ function AppRoutes() {
   return (
     <Routes>
       <Route
+        path="/"
+        element={
+          <RedirectIfAuthed>
+            <LandingPage />
+          </RedirectIfAuthed>
+        }
+      />
+      <Route
         path="/login"
         element={
           <RedirectIfAuthed>
@@ -53,7 +62,14 @@ function AppRoutes() {
         <Route path="/channels" element={<ChannelsPage />} />
         <Route path="/channels/:channelId" element={<ChannelPage />} />
       </Route>
-      <Route path="*" element={<Navigate to="/channels" replace />} />
+      <Route
+        path="*"
+        element={
+          <RedirectIfAuthed>
+            <LandingPage />
+          </RedirectIfAuthed>
+        }
+      />
     </Routes>
   );
 }

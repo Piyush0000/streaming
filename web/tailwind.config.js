@@ -4,20 +4,20 @@ export default {
   theme: {
     extend: {
       colors: {
-        base: '#0b0e14',
-        panel: '#12161f',
-        hover: '#1a1f2b',
-        border: '#232838',
+        base: '#050a17',
+        panel: '#0c1526',
+        hover: '#152036',
+        border: '#1f2a3d',
         accent: {
-          DEFAULT: '#7c5cff',
-          hover: '#6a46f5',
-          muted: '#382a70',
-          soft: '#25204a',
+          DEFAULT: '#3b82f6',
+          hover: '#2563eb',
+          muted: '#1e3a66',
+          soft: '#15223d',
         },
         text: {
           primary: '#e6e8ec',
-          secondary: '#8b92a5',
-          muted: '#5b6273',
+          secondary: '#93a4c3',
+          muted: '#64748b',
         },
         success: '#22c55e',
         danger: '#ef4444',

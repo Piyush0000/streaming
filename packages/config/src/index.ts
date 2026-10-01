@@ -49,6 +49,7 @@ export const authServiceEnvSchema = z.object({
   ...postgresEnvSchema,
   ACCESS_TOKEN_TTL: z.string().default('15m'),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
+  GOOGLE_CLIENT_ID: z.string().min(1, 'GOOGLE_CLIENT_ID is required'),
 });
 export type AuthServiceEnv = z.infer<typeof authServiceEnvSchema>;
 

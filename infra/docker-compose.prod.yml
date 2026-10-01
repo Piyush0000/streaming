@@ -47,6 +47,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL}
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
     # No host port — gateway reaches it over the compose network by service name.
 
   api-service:

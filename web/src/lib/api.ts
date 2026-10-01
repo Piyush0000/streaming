@@ -18,7 +18,10 @@ export interface AuthTokens {
 async function parseJsonOrThrow(res: Response) {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(body?.error ?? `request failed with status ${res.status}`);
+    // Prefer the specific, field-level message the backend already computes
+    // (zod issues formatted as "field: reason") over the bare error code —
+    // a generic "invalid_input" tells the user nothing about what to fix.
+    throw new Error(body?.message ?? body?.error ?? `request failed with status ${res.status}`);
   }
   return body;
 }
@@ -37,6 +40,15 @@ export async function login(email: string, password: string): Promise<AuthTokens
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
+  });
+  return parseJsonOrThrow(res);
+}
+
+export async function loginWithGoogle(idToken: string): Promise<AuthTokens> {
+  const res = await fetch(`${AUTH_BASE_URL}/google`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken }),
   });
   return parseJsonOrThrow(res);
 }

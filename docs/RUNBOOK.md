@@ -143,3 +143,35 @@ lived only in a service process or only in Redis.
   `.env.example`, and confirm `docker compose --env-file .env -f
   infra/docker-compose.dev.yml up` (not just `docker compose up`, which
   won't pick up the root `.env` from inside `infra/`).
+
+## CI/CD (GitHub Actions -> production VPS)
+
+`.github/workflows/deploy.yml`: every push/PR is type-checked and built; a push to `main` that passes is deployed
+by `infra/deploy/deploy.sh` on the server.
+
+**What a deploy does:** pins the exact commit (must be on `origin/main`), builds new images tagged with the sha
+*while the old containers keep serving*, switches over, then waits until every service's `/readyz` is ready **and**
+the containers stay up without restarting for 10s. If anything fails it restores the previous images and compose
+file automatically. Exit codes: `0` deployed, `1` failed and rolled back cleanly, `2` rollback itself unhealthy
+(needs a human), `3` refused. Old sha-tagged images are pruned (current + previous are kept).
+
+**One-time setup (needs a GitHub repo admin):** add ONE repository secret, `VPS_SSH_KEY`
+(Settings -> Secrets and variables -> Actions -> New repository secret), whose value is the full contents of the
+private key file, including the `-----BEGIN/END OPENSSH PRIVATE KEY-----` lines. Then delete the local copy.
+
+**Why that key is safe to hand to GitHub:** on the server its `authorized_keys` entry is
+`restrict,command="/usr/local/bin/streaming-deploy"`. It cannot open a shell, forward ports, or run anything except
+`deploy <40-hex commit sha>`, which the wrapper validates before running `deploy.sh`. The workflow also pins the
+server's SSH host key, so the key is only ever offered to the real server (update `DEPLOY_HOST_KEY` in the workflow if
+the VPS is ever reinstalled).
+
+**Manual deploy / rollback on the server:**
+
+```bash
+ssh root@75.119.144.199
+/var/www/streaming/infra/deploy/deploy.sh origin/main        # deploy latest main
+/var/www/streaming/infra/deploy/deploy.sh <older-commit>     # roll back to a known-good commit
+```
+
+**Rotate or revoke CI access:** delete the `streaming-ci-deploy` line from `/root/.ssh/authorized_keys`.
+Production `.env` is never deployed from git; edit `/var/www/streaming/.env` on the server and re-run a deploy.

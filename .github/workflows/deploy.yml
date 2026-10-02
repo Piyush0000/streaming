@@ -1,0 +1,93 @@
+name: CI / Deploy
+
+# Every push and PR is type-checked and built. Pushes to main that pass are
+# then deployed to the VPS, health-gated, with automatic rollback
+# (infra/deploy/deploy.sh does the work on the server).
+#
+# One-time setup: a single repository secret, VPS_SSH_KEY (Settings ->
+# Secrets and variables -> Actions). It is a restricted key: on the server it
+# can only run `deploy <40-hex commit sha>`, nothing else. See docs/RUNBOOK.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Type-check and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # --ignore-scripts: type-checking doesn't need mediasoup's native worker.
+      - name: Install
+        run: npm ci --ignore-scripts
+
+      # Shared packages must build before the services/web that import them.
+      - name: Build shared packages
+        run: npm run build -w packages/shared-types -w packages/config -w packages/db-migrate -w packages/events -w packages/auth-shared
+
+      - name: Build services
+        run: npm run build -w services/auth-service -w services/api-service -w services/chat-service -w services/media-service
+
+      - name: Build web
+        run: npm run build -w web
+
+  deploy:
+    name: Deploy to production
+    needs: verify
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Never two deploys at once; a newer push waits for the running one.
+    concurrency:
+      group: streaming-production-deploy
+      cancel-in-progress: false
+    env:
+      DEPLOY_HOST: 75.119.144.199
+      DEPLOY_USER: root
+      # Public SSH host key of the VPS (from /etc/ssh/ssh_host_ed25519_key.pub),
+      # pinned so the key below is only ever presented to the real server.
+      # If the server is ever reinstalled, update this line.
+      DEPLOY_HOST_KEY: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMd1wtwBpm5RO5BGRXCvfPSYdnQR7B1quh5ZVCmUg2N3"
+    steps:
+      - name: Deploy ${{ github.sha }}
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          if [ -z "$SSH_KEY" ]; then
+            echo "::error::Repository secret VPS_SSH_KEY is not set (see docs/RUNBOOK.md, 'CI/CD')."
+            exit 1
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s %s\n' "$DEPLOY_HOST" "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
+          install -m 600 /dev/null ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          # The server forces its own command, so this string is only a request
+          # it validates ("deploy" + exactly one 40-hex commit sha).
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+              -o ConnectTimeout=20 -o ServerAliveInterval=30 \
+              "$DEPLOY_USER@$DEPLOY_HOST" "deploy ${{ github.sha }}"
+
+      - name: Public smoke test
+        run: |
+          for i in 1 2 3 4 5; do
+            if curl -fsS --max-time 15 https://stream.lr21.org/api/auth/healthz && curl -fsS --max-time 15 -o /dev/null https://stream.lr21.org/; then
+              echo; echo "stream.lr21.org is up"; exit 0
+            fi
+            sleep 6
+          done
+          echo "::error::stream.lr21.org did not answer after deploy"; exit 1

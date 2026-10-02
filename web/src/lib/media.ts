@@ -13,6 +13,13 @@ import type {
   PeerLeftNotification,
   ProducerClosedNotification,
   ProducerKind,
+  PeerInfo,
+  PeerRole,
+  SpeakRequestInfo,
+  RoleChangedNotification,
+  SpeakRequestedNotification,
+  SpeakRequestResolvedNotification,
+  RemovedNotification,
 } from '@streaming/shared-types';
 
 const MEDIA_WS_URL = import.meta.env.VITE_MEDIA_WS_URL ?? '/ws/media';
@@ -44,9 +51,32 @@ export interface VoiceClientCallbacks {
   onRemoteScreenShare: (peer: RemotePeerVideo) => void;
   onRemoteScreenShareEnded: (peerId: string) => void;
   /** A peer joined this voice room after we did (not the initial roster on our own join). */
-  onPeerJoined: (peerId: string, username: string) => void;
+  onPeerJoined: (peerId: string, username: string, info?: { userId: string; role: PeerRole }) => void;
   onPeerLeft: (peerId: string) => void;
   onError?: (message: string) => void;
+
+  // --- Stream-mode notifications (all optional; plain voice channels never set them) ---
+  /** A peer's role changed (approve / demote). Broadcast to the whole room, including to ourselves. */
+  onRoleChanged?: (info: { peerId: string; userId: string; role: PeerRole }) => void;
+  /** Host/admin only: a listener asked to speak. */
+  onSpeakRequested?: (request: SpeakRequestInfo) => void;
+  /** A speak request was approved / denied / cancelled (for us, or - for managers - for anyone). */
+  onSpeakRequestResolved?: (info: { peerId: string; approved: boolean; cancelled?: boolean }) => void;
+  /** The server removed us (kick/ban/remove-peer); the socket closes right after. */
+  onRemoved?: (reason: string) => void;
+  onStreamEnded?: () => void;
+  /** The signaling socket closed without us calling leave() (and without a `removed` notice first). */
+  onDisconnected?: () => void;
+  /** One of OUR producers was closed by the server (e.g. we were demoted). */
+  onLocalProducerClosed?: (source: 'mic' | 'screen') => void;
+}
+
+/** Result of {@link VoiceClient.joinStream}. */
+export interface StreamJoinResult {
+  peers: PeerInfo[];
+  you: JoinRoomResult['you'];
+  stream?: JoinRoomResult['stream'];
+  pendingSpeakRequests: SpeakRequestInfo[];
 }
 
 interface ConsumedProducerMeta {
@@ -69,12 +99,21 @@ export class VoiceClient {
   private localStream?: MediaStream;
   private screenStream?: MediaStream;
   private screenProducer?: Producer;
+  private micProducer?: Producer;
+  private joined = false;
+  private leaving = false;
+  private micGeneration = 0;
   private consumedProducers = new Set<string>();
   private consumedProducerMeta = new Map<string, ConsumedProducerMeta>();
 
   private constructor(ws: WebSocket, private callbacks: VoiceClientCallbacks) {
     this.ws = ws;
     this.ws.addEventListener('message', (event) => this.handleMessage(event));
+    this.ws.addEventListener('close', () => {
+      for (const pending of this.pendingRequests.values()) pending.reject(new Error('connection closed'));
+      this.pendingRequests.clear();
+      if (!this.leaving) this.callbacks.onDisconnected?.();
+    });
   }
 
   static async connect(accessToken: string, callbacks: VoiceClientCallbacks): Promise<VoiceClient> {
@@ -107,8 +146,8 @@ export class VoiceClient {
         break;
       }
       case 'peer-joined': {
-        const { peerId, username } = msg.payload as PeerJoinedNotification;
-        this.callbacks.onPeerJoined(peerId, username);
+        const { peerId, username, userId, role } = msg.payload as PeerJoinedNotification;
+        this.callbacks.onPeerJoined(peerId, username, userId && role ? { userId, role } : undefined);
         break;
       }
       case 'peer-left': {
@@ -122,6 +161,12 @@ export class VoiceClient {
       }
       case 'producer-closed': {
         const { producerId, peerId } = msg.payload as ProducerClosedNotification;
+        if (this.micProducer && this.micProducer.id === producerId) {
+          // The server closed our own mic producer (we were demoted).
+          this.releaseLocalMic();
+          this.callbacks.onLocalProducerClosed?.('mic');
+          break;
+        }
         const meta = this.consumedProducerMeta.get(producerId);
         this.consumedProducerMeta.delete(producerId);
         this.consumedProducers.delete(producerId);
@@ -130,6 +175,21 @@ export class VoiceClient {
         }
         break;
       }
+      case 'role-changed':
+        this.callbacks.onRoleChanged?.(msg.payload as RoleChangedNotification);
+        break;
+      case 'speak-requested':
+        this.callbacks.onSpeakRequested?.(msg.payload as SpeakRequestedNotification);
+        break;
+      case 'speak-request-resolved':
+        this.callbacks.onSpeakRequestResolved?.(msg.payload as SpeakRequestResolvedNotification);
+        break;
+      case 'removed':
+        this.callbacks.onRemoved?.((msg.payload as RemovedNotification).reason);
+        break;
+      case 'stream-ended':
+        this.callbacks.onStreamEnded?.();
+        break;
       default:
         break;
     }
@@ -169,7 +229,121 @@ export class VoiceClient {
     return peers.map((p) => ({ peerId: p.peerId, username: p.username }));
   }
 
+  // -------------------------------------------------------------------------
+  // Stream mode (additive; the voice-channel flow above is unchanged)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Joins a stream's media room WITHOUT publishing anything (no mic prompt):
+   * listeners never produce. Hosts/speakers call {@link startMic} afterwards.
+   * Existing producers (mics, host screen-share) are consumed immediately.
+   */
+  async joinStream(channelId: string): Promise<StreamJoinResult> {
+    const result = await this.request<JoinRoomResult>('join-room', { channelId });
+    await this.device.load({ routerRtpCapabilities: result.routerRtpCapabilities as any });
+    this.joined = true;
+
+    for (const peer of result.peers) {
+      for (const producer of peer.producers) {
+        this.consume(producer.id, peer.peerId, peer.username).catch((err) => this.callbacks.onError?.(err.message));
+      }
+    }
+    return {
+      peers: result.peers,
+      you: result.you,
+      stream: result.stream,
+      pendingSpeakRequests: result.pendingSpeakRequests ?? [],
+    };
+  }
+
+  /** True while a mic producer is live. */
+  get isMicLive(): boolean {
+    return !!this.micProducer && !this.micProducer.closed;
+  }
+
+  /** The local mic stream (for level metering), if any. */
+  get micStream(): MediaStream | undefined {
+    return this.localStream;
+  }
+
+  /**
+   * Prompts for the mic and publishes it. Throws on permission denial / server
+   * rejection (e.g. role not allowed) so the caller can show a retry button.
+   * `mutedInitially` keeps a previously-chosen mute across a re-start.
+   */
+  async startMic(mutedInitially = false): Promise<void> {
+    if (this.isMicLive) return;
+    if (!this.joined) throw new Error('not connected to the stream');
+    const generation = ++this.micGeneration;
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    if (generation !== this.micGeneration || this.leaving) {
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+    try {
+      await this.createSendTransport();
+      const track = stream.getAudioTracks()[0];
+      track.enabled = !mutedInitially;
+      const producer = await this.sendTransport!.produce({ track, appData: { source: 'mic' } });
+      if (generation !== this.micGeneration || this.leaving) {
+        producer.close();
+        this.request('close-producer', { producerId: producer.id }).catch(() => {});
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      this.localStream = stream;
+      this.micProducer = producer;
+    } catch (err) {
+      stream.getTracks().forEach((t) => t.stop());
+      throw err;
+    }
+  }
+
+  /** Stops publishing the mic and releases the device. Safe to call when not live. */
+  async stopMic(): Promise<void> {
+    this.micGeneration++;
+    const producer = this.micProducer;
+    this.releaseLocalMic();
+    if (producer && !producer.closed) {
+      const producerId = producer.id;
+      producer.close();
+      try {
+        await this.request('close-producer', { producerId });
+      } catch {
+        // best-effort - the server closes it when the peer leaves / is demoted
+      }
+    }
+  }
+
+  private releaseLocalMic() {
+    this.micProducer = undefined;
+    this.localStream?.getTracks().forEach((t) => t.stop());
+    this.localStream = undefined;
+  }
+
+  requestToSpeak(): Promise<void> {
+    return this.request<void>('request-speak');
+  }
+  cancelSpeakRequest(): Promise<void> {
+    return this.request<void>('cancel-speak-request');
+  }
+  approveSpeaker(peerId: string): Promise<void> {
+    return this.request<void>('approve-speaker', { peerId });
+  }
+  denySpeaker(peerId: string): Promise<void> {
+    return this.request<void>('deny-speaker', { peerId });
+  }
+  demoteSpeaker(peerId: string): Promise<void> {
+    return this.request<void>('demote-speaker', { peerId });
+  }
+  /** Unrecorded kick (the user can rejoin). For recorded kick/ban use the REST moderation endpoint. */
+  removePeer(peerId: string): Promise<void> {
+    return this.request<void>('remove-peer', { peerId });
+  }
+
   private async createSendTransport() {
+    if (this.sendTransport) return;
     const params = await this.request<CreateWebRtcTransportResult>('create-webrtc-transport', {
       direction: 'send',
     });
@@ -269,13 +443,17 @@ export class VoiceClient {
    * this codebase).
    */
   async startScreenShare(): Promise<MediaStream> {
-    if (!this.sendTransport) throw new Error('not connected to voice');
+    if (!this.sendTransport) {
+      // Stream hosts join without a send transport until they publish; create it on demand.
+      if (!this.joined) throw new Error('not connected to voice');
+      await this.createSendTransport();
+    }
     if (this.screenProducer) return this.screenStream!;
 
     const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
     const track = stream.getVideoTracks()[0];
     this.screenStream = stream;
-    this.screenProducer = await this.sendTransport.produce({ track, appData: { source: 'screen' } });
+    this.screenProducer = await this.sendTransport!.produce({ track, appData: { source: 'screen' } });
 
     // Fires when the user stops sharing via the browser's own "Stop sharing"
     // chrome/toolbar, bypassing our button entirely.
@@ -303,6 +481,8 @@ export class VoiceClient {
   }
 
   async leave() {
+    this.leaving = true;
+    this.micGeneration++;
     try {
       await this.request('leave-room');
     } catch {

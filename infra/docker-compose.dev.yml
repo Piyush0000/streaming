@@ -60,10 +60,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       <<: *common-env
       PORT: ${API_SERVICE_PORT}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      STREAM_MIN_FOLLOWERS: ${STREAM_MIN_FOLLOWERS:-500}
+      STREAM_ADMIN_EMAILS: ${STREAM_ADMIN_EMAILS:-}
+      LR21_BRIDGE_URL: ${LR21_BRIDGE_URL:-}
+      LR21_BRIDGE_SECRET: ${LR21_BRIDGE_SECRET:-}
     ports:
       - "${API_SERVICE_PORT}:${API_SERVICE_PORT}"
 
@@ -82,6 +90,9 @@ services:
       PORT: ${CHAT_SERVICE_PORT}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379
+      # No depends_on api-service on purpose: only stream joins need it.
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      API_SERVICE_INTERNAL_URL: ${API_SERVICE_INTERNAL_URL:-http://api-service:4002}
     volumes:
       - chat-uploads:/app/services/chat-service/uploads
     ports:
@@ -99,6 +110,8 @@ services:
       <<: *common-env
       PORT: ${MEDIA_SERVICE_PORT}
       REDIS_URL: redis://redis:6379
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      API_SERVICE_INTERNAL_URL: ${API_SERVICE_INTERNAL_URL:-http://api-service:4002}
       MEDIASOUP_LISTEN_IP: 0.0.0.0
       MEDIASOUP_ANNOUNCED_IP: ${MEDIASOUP_ANNOUNCED_IP}
       MEDIASOUP_MIN_PORT: ${MEDIASOUP_MIN_PORT}

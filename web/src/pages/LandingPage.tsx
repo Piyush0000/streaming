@@ -15,8 +15,8 @@ const FEATURES = [
   {
     icon: Mic,
     iconClass: 'text-accent',
-    title: 'Voice Channels',
-    sub: 'Hop into live audio rooms with traders, anytime.',
+    title: 'Voice & Live Rooms',
+    sub: 'Drop into voice channels, or join live rooms where the host picks who speaks for Q&A.',
   },
   {
     icon: MonitorUp,

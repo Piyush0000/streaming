@@ -52,10 +52,46 @@ export async function insertMessage(input: {
   return toMessage(rows[0]);
 }
 
+/** Looks up a not-yet-deleted message's author, scoped to its channel. */
+export async function getLiveMessageAuthor(
+  channelId: string,
+  messageId: string
+): Promise<{ userId: string } | undefined> {
+  const { rows } = await pool.query(
+    `SELECT user_id FROM messages WHERE id = $1 AND channel_id = $2 AND deleted_at IS NULL`,
+    [messageId, channelId]
+  );
+  return rows[0] ? { userId: rows[0].user_id } : undefined;
+}
+
+/** Soft-deletes a message. Returns false if it was already deleted / not found. */
+export async function softDeleteMessage(
+  channelId: string,
+  messageId: string,
+  deletedBy: string
+): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `UPDATE messages SET deleted_at = now(), deleted_by = $3
+     WHERE id = $1 AND channel_id = $2 AND deleted_at IS NULL`,
+    [messageId, channelId, deletedBy]
+  );
+  return (rowCount ?? 0) > 0;
+}
+
+/**
+ * Fallback when api-service is unreachable: channels live in the same
+ * Postgres, so ask it directly whether a channel is a stream.
+ * Returns undefined if the channel row doesn't exist.
+ */
+export async function getChannelKindFromDb(channelId: string): Promise<string | undefined> {
+  const { rows } = await pool.query('SELECT kind FROM channels WHERE id = $1', [channelId]);
+  return rows[0]?.kind;
+}
+
 export async function getRecentMessages(channelId: string, limit = 50): Promise<Message[]> {
   const { rows } = await pool.query(
     `SELECT * FROM (
-       SELECT * FROM messages WHERE channel_id = $1 ORDER BY created_at DESC LIMIT $2
+       SELECT * FROM messages WHERE channel_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2
      ) recent ORDER BY created_at ASC`,
     [channelId, limit]
   );

@@ -5,7 +5,7 @@ COPY tsconfig.base.json ./
 COPY packages ./packages
 COPY services/api-service ./services/api-service
 RUN npm install --workspaces --include-workspace-root --ignore-scripts
-RUN npm run build -w @streaming/shared-types -w @streaming/config -w @streaming/db-migrate -w @streaming/auth-shared -w @streaming/api-service
+RUN npm run build -w @streaming/shared-types -w @streaming/config -w @streaming/db-migrate -w @streaming/auth-shared -w @streaming/events -w @streaming/api-service
 
 FROM node:20-alpine AS runtime
 WORKDIR /app

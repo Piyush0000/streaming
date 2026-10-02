@@ -6,6 +6,10 @@ import { env } from './env';
 // active WebRTC rooms are naturally rebuilt as clients rejoin.
 export const redis = new Redis(env.REDIS_URL);
 
+// Dedicated subscriber connection for stream moderation / lifecycle events
+// (a subscribed connection cannot publish or run other commands).
+export const redisSub = new Redis(env.REDIS_URL);
+
 export async function pingRedis(): Promise<void> {
   await redis.ping();
 }

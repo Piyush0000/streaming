@@ -110,3 +110,64 @@ export async function createChannel(
   const body = await parseJsonOrThrow(res);
   return body.channel;
 }
+
+// ---------------------------------------------------------------------------
+// Authenticated JSON helper used by the live-stream features. Unlike
+// parseJsonOrThrow it preserves the HTTP status and the machine-readable
+// `error` code (and the whole body) so callers can branch on e.g.
+// `already_live` / `not_eligible` / `guidelines_not_accepted`.
+// ---------------------------------------------------------------------------
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly body: Record<string, unknown>;
+
+  constructor(status: number, code: string, message: string, body: Record<string, unknown>) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+    this.body = body;
+  }
+}
+
+const FRIENDLY_ERRORS: Record<string, string> = {
+  stream_not_found: 'This stream could not be found.',
+  stream_already_ended: 'This stream has already ended.',
+  stream_ended: 'This stream has ended.',
+  forbidden: 'You do not have permission to do that.',
+  internal_error: 'Something went wrong on our side. Please try again.',
+  user_not_found: 'That user no longer exists.',
+};
+
+export async function apiRequest<T>(
+  accessToken: string,
+  method: 'GET' | 'POST' | 'DELETE',
+  path: string,
+  body?: unknown
+): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new ApiError(0, 'network_error', 'Could not reach the server. Check your connection.', {});
+  }
+  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    const code = typeof json.error === 'string' ? json.error : `http_${res.status}`;
+    const message =
+      (typeof json.message === 'string' && json.message) ||
+      FRIENDLY_ERRORS[code] ||
+      `Request failed (${res.status}).`;
+    throw new ApiError(res.status, code, message, json);
+  }
+  return json as T;
+}

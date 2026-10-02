@@ -71,6 +71,18 @@ export function playLeaveSound() {
   setTimeout(() => playTone(340, 130), 70);
 }
 
+/**
+ * A listener asked to speak (host/admin only) - a bright three-note rising
+ * arpeggio on a triangle wave, distinct from the join/leave blips.
+ */
+export function playSpeakRequestSound() {
+  const ctx = getContext();
+  if (!ctx) return;
+  playTone(784, 110, { type: 'triangle', gain: 0.1 });
+  setTimeout(() => playTone(988, 110, { type: 'triangle', gain: 0.1 }), 110);
+  setTimeout(() => playTone(1319, 200, { type: 'triangle', gain: 0.1 }), 220);
+}
+
 /** A new chat message arrived while you weren't looking at the bottom of that channel. */
 export function playMessageSound() {
   playTone(600, 90, { type: 'sine', gain: 0.08 });

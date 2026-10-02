@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
+import { LiveStreamsProvider } from '../context/LiveStreamsContext';
 
 /**
  * Persistent shell shown for every authenticated route: sidebar (channel list +
@@ -11,6 +12,7 @@ export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
+    <LiveStreamsProvider>
     <div className="flex h-[100dvh] w-full overflow-hidden bg-base text-text-primary">
       <Sidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
 
@@ -33,5 +35,6 @@ export default function AppLayout() {
         </div>
       </div>
     </div>
+    </LiveStreamsProvider>
   );
 }

@@ -25,9 +25,14 @@ const createChannelSchema = z.object({
 });
 
 // All channels are public in Phase 1 — no permission checks beyond "is logged in".
+// kind='stream' channels are NEVER listed here (live or ended): the UI lists
+// live streams via GET /streams?status=live instead. GET /channels/:id still
+// resolves a stream channel by id.
 channelsRouter.get('/', requireAuth, async (_req: Request, res: Response) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM channels ORDER BY created_at ASC');
+    const { rows } = await pool.query(
+      `SELECT * FROM channels WHERE kind <> 'stream' ORDER BY created_at ASC`
+    );
     res.json({ channels: rows.map(toChannel) });
   } catch (err) {
     logger.error({ err }, 'list channels failed');

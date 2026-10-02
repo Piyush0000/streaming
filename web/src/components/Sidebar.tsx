@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Channel } from '@streaming/shared-types';
-import { Hash, LogOut, Plus, Volume2, X } from 'lucide-react';
+import { Hash, LogOut, Plus, Radio, Volume2, X } from 'lucide-react';
+import { useLiveStreams } from '../context/LiveStreamsContext';
 import { createChannel, listChannels } from '../lib/api';
 import { useSession } from '../context/SessionContext';
 import Avatar from './Avatar';
@@ -19,7 +20,8 @@ export default function Sidebar({
 }) {
   const { session, logout } = useSession();
   const navigate = useNavigate();
-  const { channelId } = useParams();
+  const { channelId, streamId } = useParams();
+  const live = useLiveStreams();
 
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,6 +89,64 @@ export default function Sidebar({
         </div>
 
         <div className="flex-1 overflow-y-auto px-2 py-3">
+          <div className="mb-3">
+            <div className="flex items-center justify-between px-2 pb-1">
+              <button
+                onClick={() => {
+                  navigate('/live');
+                  onCloseMobile();
+                }}
+                className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted hover:text-text-primary"
+              >
+                <span className="h-2 w-2 rounded-full bg-danger" aria-hidden />
+                Live
+                {live.streams.length > 0 && <span className="text-text-secondary">({live.streams.length})</span>}
+              </button>
+              <button
+                onClick={() => {
+                  live.openGoLive();
+                  onCloseMobile();
+                }}
+                className="flex items-center gap-1 rounded-md bg-danger/15 px-2 py-0.5 text-[11px] font-semibold text-danger transition-colors hover:bg-danger/25"
+              >
+                <Radio size={12} /> Go live
+              </button>
+            </div>
+            {live.streams.length === 0 ? (
+              <p className="px-2 py-1 text-xs text-text-muted">
+                {live.loading ? 'Checking for live streams…' : 'No one is live right now.'}
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-0.5">
+                {live.streams.map((s) => (
+                  <li key={s.id}>
+                    <button
+                      onClick={() => {
+                        navigate(`/live/${s.id}`);
+                        onCloseMobile();
+                      }}
+                      className={cx(
+                        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
+                        s.id === streamId
+                          ? 'bg-accent-soft text-text-primary'
+                          : 'text-text-secondary hover:bg-hover hover:text-text-primary'
+                      )}
+                    >
+                      <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-danger" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-danger" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{s.title}</span>
+                        <span className="block truncate text-[11px] text-text-muted">{s.hostUsername}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           {loading && (
             <div className="flex items-center justify-center py-8">
               <Spinner size={18} />

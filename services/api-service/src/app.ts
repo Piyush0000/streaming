@@ -3,7 +3,12 @@ import cors from 'cors';
 import pinoHttp from 'pino-http';
 import { logger } from './logger';
 import { pingDb } from './db';
+import { pingRedis } from './redis';
 import { channelsRouter } from './routes/channels';
+import { guidelinesRouter } from './routes/guidelines';
+import { streamsRouter } from './routes/streams';
+import { usersRouter } from './routes/users';
+import { internalRouter } from './routes/internal';
 
 export const app = express();
 
@@ -16,14 +21,25 @@ app.get('/healthz', (_req, res) => res.status(200).json({ status: 'ok' }));
 app.get('/readyz', async (_req, res) => {
   try {
     await pingDb();
-    res.status(200).json({ status: 'ready' });
   } catch (err) {
-    logger.error({ err }, 'readyz check failed');
-    res.status(503).json({ status: 'not_ready', failing: 'postgres' });
+    logger.error({ err }, 'readyz: postgres check failed');
+    return res.status(503).json({ status: 'not_ready', failing: 'postgres' });
   }
+  try {
+    await pingRedis();
+  } catch (err) {
+    logger.error({ err }, 'readyz: redis check failed');
+    return res.status(503).json({ status: 'not_ready', failing: 'redis' });
+  }
+  res.status(200).json({ status: 'ready' });
 });
 
 app.use('/channels', channelsRouter);
+app.use('/guidelines', guidelinesRouter);
+app.use('/streams', streamsRouter);
+app.use('/users', usersRouter);
+// Service-to-service only; guarded by x-internal-secret and NOT proxied by the gateway.
+app.use('/internal', internalRouter);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logger.error({ err }, 'unhandled error');

@@ -6,6 +6,7 @@ import type {
   Producer,
   Consumer,
 } from 'mediasoup/node/lib/types';
+import type { PeerRole } from '@streaming/shared-types';
 import { env } from './env';
 import { logger } from './logger';
 
@@ -32,16 +33,31 @@ export interface Peer {
   id: string;
   userId: string;
   username: string;
+  /** Plain voice channels: everyone is 'speaker'. Streams: host | speaker | listener. */
+  role: PeerRole;
+  /** Platform admin (STREAM_ADMIN_EMAILS) — may manage speakers in stream rooms. */
+  isAdmin: boolean;
   transports: Map<string, WebRtcTransport>;
   producers: Map<string, Producer>;
   consumers: Map<string, Consumer>;
 }
 
-export interface Room {
+export interface RoomMeta {
+  isStream: boolean;
+  hostId?: string;
+  hostUsername?: string;
+  title?: string;
+}
+
+export interface Room extends RoomMeta {
   channelId: string;
   worker: Worker;
   router: Router;
   peers: Map<string, Peer>;
+  /** Stream rooms: peerIds with an open request-to-speak. */
+  pendingSpeakRequests: Set<string>;
+  /** Stream rooms: userIds approved to speak, so a reconnect keeps the role while the room lives. */
+  speakerUserIds: Set<string>;
 }
 
 /**
@@ -53,10 +69,20 @@ export interface Room {
 export class RoomManager {
   private rooms = new Map<string, Room>();
 
-  async getOrCreateRoom(channelId: string): Promise<Room> {
-    const existing = this.rooms.get(channelId);
-    if (existing) return existing;
+  private creating = new Map<string, Promise<Room>>();
 
+  /** Concurrent first joins share one creation so we never build two workers for a room. */
+  getOrCreateRoom(channelId: string, meta: RoomMeta): Promise<Room> {
+    const existing = this.rooms.get(channelId);
+    if (existing) return Promise.resolve(existing);
+    const inFlight = this.creating.get(channelId);
+    if (inFlight) return inFlight;
+    const p = this.createRoom(channelId, meta).finally(() => this.creating.delete(channelId));
+    this.creating.set(channelId, p);
+    return p;
+  }
+
+  private async createRoom(channelId: string, meta: RoomMeta): Promise<Room> {
     const worker = await mediasoup.createWorker({
       rtcMinPort: env.MEDIASOUP_MIN_PORT,
       rtcMaxPort: env.MEDIASOUP_MAX_PORT,
@@ -68,9 +94,17 @@ export class RoomManager {
 
     const router = await worker.createRouter({ mediaCodecs });
 
-    const room: Room = { channelId, worker, router, peers: new Map() };
+    const room: Room = {
+      ...meta,
+      channelId,
+      worker,
+      router,
+      peers: new Map(),
+      pendingSpeakRequests: new Set(),
+      speakerUserIds: new Set(),
+    };
     this.rooms.set(channelId, room);
-    logger.info({ channelId }, 'created voice room');
+    logger.info({ channelId, isStream: meta.isStream }, 'created voice room');
     return room;
   }
 
@@ -91,13 +125,24 @@ export class RoomManager {
     for (const transport of peer.transports.values()) transport.close();
 
     room.peers.delete(peerId);
+    room.pendingSpeakRequests.delete(peerId);
 
     if (room.peers.size === 0) {
-      room.router.close();
-      room.worker.close();
-      this.rooms.delete(room.channelId);
+      this.closeRoom(room);
       logger.info({ channelId: room.channelId }, 'closed empty voice room');
     }
+  }
+
+  /** Tears down a room nobody ended up joining (e.g. the joiner disconnected mid-setup). */
+  closeIfEmpty(room: Room): void {
+    if (room.peers.size === 0) this.closeRoom(room);
+  }
+
+  private closeRoom(room: Room): void {
+    // Guard against a stale reference closing a newer room with the same id.
+    if (this.rooms.get(room.channelId) === room) this.rooms.delete(room.channelId);
+    room.router.close();
+    room.worker.close();
   }
 
   async createWebRtcTransport(room: Room): Promise<WebRtcTransport> {

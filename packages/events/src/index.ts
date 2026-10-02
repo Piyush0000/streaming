@@ -1,4 +1,5 @@
 import Redis from 'ioredis';
+import type { StreamEvent } from '@streaming/shared-types';
 
 /**
  * Versioned event envelope. Every event that crosses the Redis Streams
@@ -143,6 +144,41 @@ export function subscribePresence<T>(
       // eslint-disable-next-line no-console
       console.error(`[events] failed to parse presence message on ${channel}`, err);
     }
+  });
+}
+
+/** Redis pub/sub channel carrying live-stream moderation / lifecycle events. */
+export const STREAM_EVENTS_CHANNEL = 'stream.events';
+
+/**
+ * Publish a live-stream event (moderation action, stream ended) on the
+ * `stream.events` pub/sub channel. Pub/sub (not a consumer group) on purpose:
+ * every chat-service / media-service instance must see every event.
+ *
+ * Best-effort acceleration ONLY. Consumers must still verify authoritative
+ * state via api-service's internal access endpoint at join/send time.
+ */
+export async function publishStreamEvent(redis: Redis, event: StreamEvent): Promise<void> {
+  await publishPresence<StreamEvent>(redis, STREAM_EVENTS_CHANNEL, event);
+}
+
+/**
+ * Subscribe to stream events. `redis` must be a connection dedicated to
+ * subscribing (a subscribed ioredis connection cannot issue other commands).
+ * Handler exceptions are caught and logged so one bad event can't kill the
+ * subscription.
+ */
+export function subscribeStreamEvents(
+  redis: Redis,
+  handler: (event: StreamEvent, envelope: EventEnvelope<StreamEvent>) => void | Promise<void>
+): void {
+  subscribePresence<StreamEvent>(redis, STREAM_EVENTS_CHANNEL, (envelope) => {
+    Promise.resolve()
+      .then(() => handler(envelope.data, envelope))
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('[events] stream event handler failed', err);
+      });
   });
 }
 

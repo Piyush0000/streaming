@@ -9,6 +9,7 @@ import { channelInvitesRouter, invitesRouter } from './routes/invites';
 import { guidelinesRouter } from './routes/guidelines';
 import { streamsRouter } from './routes/streams';
 import { usersRouter } from './routes/users';
+import { hubRouter } from './routes/hub';
 import { internalRouter } from './routes/internal';
 
 export const app = express();
@@ -41,6 +42,7 @@ app.use('/invites', invitesRouter);
 app.use('/guidelines', guidelinesRouter);
 app.use('/streams', streamsRouter);
 app.use('/users', usersRouter);
+app.use('/hub', hubRouter);
 // Service-to-service only; guarded by x-internal-secret and NOT proxied by the gateway.
 app.use('/internal', internalRouter);
 

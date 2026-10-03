@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { SessionProvider, useSession } from './context/SessionContext';
 import { FullPageSpinner } from './components/Spinner';
@@ -11,6 +11,7 @@ import LivePage from './pages/LivePage';
 import StreamPage from './pages/StreamPage';
 import GuidelinesPage from './pages/GuidelinesPage';
 import InvitePage from './pages/InvitePage';
+const ElonixHubPage = lazy(() => import('./pages/ElonixHubPage'));
 import { ToastProvider } from './context/ToastContext';
 import {
   clearPostLoginPath,
@@ -83,6 +84,20 @@ function AppRoutes() {
           <RedirectIfAuthed>
             <LandingPage />
           </RedirectIfAuthed>
+        }
+      />
+      <Route
+        path="/elonixhub"
+        element={
+          <Suspense
+            fallback={
+              <div className="h-[100dvh] w-full bg-base">
+                <FullPageSpinner label="Loading…" />
+              </div>
+            }
+          >
+            <ElonixHubPage />
+          </Suspense>
         }
       />
       <Route

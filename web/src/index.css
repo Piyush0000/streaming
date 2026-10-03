@@ -47,3 +47,25 @@
     scrollbar-width: none;
   }
 }
+
+@keyframes heart-pop {
+  0% { transform: scale(0); opacity: 0; }
+  30% { transform: scale(1.3); opacity: 1; }
+  60% { transform: scale(0.95); opacity: 1; }
+  100% { transform: scale(1.1); opacity: 0; }
+}
+.animate-heart-pop { animation: heart-pop 0.8s ease-out forwards; }
+@keyframes heart-bump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+.animate-heart-bump { animation: heart-bump 0.3s ease-out; }
+@keyframes hub-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.animate-hub-float { animation: hub-float 4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-heart-pop, .animate-heart-bump, .animate-hub-float { animation: none; }
+}

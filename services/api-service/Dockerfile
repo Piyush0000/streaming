@@ -20,6 +20,10 @@ COPY --from=build /repo/services/api-service/migrations ./services/api-service/m
 
 RUN npm install --workspaces --include-workspace-root --omit=dev --ignore-scripts
 
+# Pre-create the Elonix Hub uploads dir owned by the non-root user so the named
+# volume (hub-uploads) is seeded with writable ownership on first run.
+RUN mkdir -p /app/services/api-service/hub-uploads && chown -R app:app /app/services/api-service/hub-uploads
+
 USER app
 WORKDIR /app/services/api-service
 EXPOSE 4002

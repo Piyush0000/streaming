@@ -10,6 +10,7 @@ import {
   Zap,
 } from 'lucide-react';
 import Avatar from '../components/Avatar';
+import HubTeaser from '../components/hub/HubTeaser';
 
 const FEATURES = [
   {
@@ -64,12 +65,20 @@ export default function LandingPage() {
           <span className="text-lg font-black tracking-tight">
             ELON<span className="text-accent">IX</span>
           </span>
-          <button
-            onClick={() => navigate('/login')}
-            className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-text-primary"
-          >
-            Sign in
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/elonixhub')}
+              className="rounded-lg px-3 py-2 text-sm font-semibold text-text-secondary transition-colors hover:text-text-primary"
+            >
+              Hub
+            </button>
+            <button
+              onClick={() => navigate('/login')}
+              className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-text-primary"
+            >
+              Sign in
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 px-5 sm:px-8">
@@ -140,6 +149,8 @@ export default function LandingPage() {
               ))}
             </div>
           </section>
+
+          <HubTeaser />
 
           {/* Secondary CTA strip */}
           <section className="mx-auto max-w-5xl pb-20">

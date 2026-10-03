@@ -8,6 +8,14 @@ import { upload, UPLOADS_DIR, isSafeUploadFilename } from '../upload';
 
 export const uploadsRouter = Router();
 
+const INLINE_IMAGE_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif',
+};
+
 // POST /uploads — multipart/form-data, field name "file". Requires auth so
 // only logged-in users can write to disk. Returns attachment metadata the
 // client then sends along with a chat:send message.
@@ -50,8 +58,23 @@ uploadsRouter.get('/:filename', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'invalid_filename' });
   }
   const filePath = path.join(UPLOADS_DIR, filename);
+  // Uploads are arbitrary user content: never let a browser sniff or execute
+  // them. Only raster images are rendered inline (fixed Content-Type from the
+  // extension); everything else is forced to download.
+  const ext = path.extname(filename).slice(1).toLowerCase();
+  const inlineType = INLINE_IMAGE_TYPES[ext];
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+  if (inlineType) {
+    res.setHeader('Content-Type', inlineType);
+    res.setHeader('Content-Disposition', 'inline');
+  } else {
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', 'attachment');
+  }
   res.sendFile(filePath, (err) => {
     if (err && !res.headersSent) {
+      res.removeHeader('Content-Disposition');
       logger.warn({ err, filename }, 'upload not found');
       res.status(404).json({ error: 'not_found' });
     }

@@ -31,13 +31,15 @@ import type {
   RemovedNotification,
   StreamEndedNotification,
   StreamEvent,
+  ChannelEvent,
+  MediaErrorCode,
 } from '@streaming/shared-types';
 import { env } from './env';
 import { logger } from './logger';
-import { roomManager, Room, Peer } from './rooms';
+import { roomManager, Room, Peer, hasUser, uniqueUserCount } from './rooms';
 import { redis, redisSub, PRESENCE_CHANNEL } from './redis';
 import { publishPresence, subscribeStreamEvents } from '@streaming/events';
-import { lookupAccess, knownNotStream, endStreamViaApi } from './access';
+import { lookupAccess, knownPublicPlainChannel, knownMaxParticipants, endStreamViaApi } from './access';
 
 interface Connection {
   ws: WebSocket;
@@ -52,6 +54,19 @@ interface Connection {
 const HOST_ABSENT_TIMEOUT_MS = 2 * 60 * 1000;
 const HOST_END_RETRY_MS = 15_000;
 const HOST_END_MAX_ATTEMPTS = 4;
+
+const NO_ACCESS_MESSAGE = 'You do not have access to this channel.';
+
+/** A failed request carrying a stable machine-readable code (sent as `code` next to the readable `error`). */
+class MediaError extends Error {
+  constructor(
+    public readonly code: MediaErrorCode,
+    message: string,
+    public readonly extra: { capacity?: { current: number; max: number }; retryAfterMs?: number } = {}
+  ) {
+    super(message);
+  }
+}
 
 function send(ws: WebSocket, msg: MediaResponse | MediaNotification) {
   if (ws.readyState === WebSocket.OPEN) {
@@ -171,21 +186,31 @@ async function handleJoinRoom(conn: Connection, payload: JoinRoomPayload): Promi
   // Switching rooms on the same connection: leave the old one cleanly first.
   if (conn.room) leaveRoom(conn);
 
-  // Authoritative access check (api-service). Plain voice channels behave as before.
+  // Authoritative access check (api-service). Public plain voice channels behave as before.
   const lookup = await lookupAccess(channelId, conn.userId, conn.email);
   let isStream = false;
   let access: Extract<typeof lookup, { status: 'ok' }>['access'] | undefined;
   if (lookup.status === 'ok') {
     access = lookup.access;
     isStream = access.isStream;
-  } else if (lookup.status === 'unreachable' && !knownNotStream(channelId)) {
-    // Can't tell stream from plain voice: fail closed rather than let a banned user in.
-    throw new Error('Could not verify access to this room right now (access service unavailable). Please try again.');
+  } else if (lookup.status === 'not_found') {
+    // Same answer as "private and not yours" so existence never leaks.
+    throw new MediaError('forbidden', NO_ACCESS_MESSAGE);
+  } else if (!knownPublicPlainChannel(channelId)) {
+    // Can't tell stream / private from public plain voice: fail closed rather than let a banned or non-member user in.
+    throw new MediaError(
+      'access_unavailable',
+      'Could not verify access to this room right now (access service unavailable). Please try again.'
+    );
   }
 
+  if (access && !access.canAccess) {
+    logger.info({ userId: conn.userId, channelId }, 'non-member denied voice join');
+    throw new MediaError('forbidden', NO_ACCESS_MESSAGE);
+  }
   if (isStream && access) {
-    if (access.status !== 'live') throw new Error('This stream has ended.');
-    if (access.banned) throw new Error('You are banned from this stream.');
+    if (access.status !== 'live') throw new MediaError('stream_ended', 'This stream has ended.');
+    if (access.banned) throw new MediaError('banned', 'You are banned from this stream.');
   }
 
   const room = await roomManager.getOrCreateRoom(channelId, {
@@ -215,6 +240,21 @@ async function handleJoinRoom(conn: Connection, payload: JoinRoomPayload): Promi
     producers: new Map(),
     consumers: new Map(),
   };
+
+  // Capacity, by UNIQUE users (a second tab of someone already inside is not a new participant).
+  // Checked synchronously with addPeer (no await in between) so concurrent joins cannot overshoot.
+  // Stream hosts and platform admins are always let in.
+  const bypassCapacity = isStream && !!access && (access.isHost || access.isAdmin);
+  if (!bypassCapacity && !hasUser(room, conn.userId)) {
+    const max = access?.maxParticipants ?? knownMaxParticipants(channelId) ?? env.VOICE_ROOM_MAX_PEERS;
+    const current = uniqueUserCount(room);
+    if (current >= max) {
+      roomManager.closeIfEmpty(room);
+      logger.info({ userId: conn.userId, channelId, current, max }, 'join rejected: room full');
+      throw new MediaError('room_full', `This room is full (${current}/${max}).`, { capacity: { current, max } });
+    }
+  }
+
   const existingPeers = Array.from(room.peers.values()).map(peerInfo);
 
   roomManager.addPeer(room, peer);
@@ -333,7 +373,60 @@ function closeMicProducers(room: Room, target: Peer) {
 // Stream events from api-service (best-effort acceleration; join is authoritative)
 // ---------------------------------------------------------------------------
 
-function handleStreamEvent(event: StreamEvent) {
+/** Peers (connections) currently in a channel's room. */
+function connectionsInChannel(channelId: string): Connection[] {
+  return Array.from(connectionsByPeerId.values()).filter((c) => c.room?.channelId === channelId);
+}
+
+const CHANNEL_REMOVED_REASONS = {
+  removed: 'You were removed from this channel.',
+  left: 'You left this channel.',
+  deleted: 'This channel was deleted.',
+  made_private: 'This channel is now private and you are not a member.',
+} as const;
+
+/**
+ * Private-channel enforcement. Best-effort acceleration like the stream
+ * events: join always re-checks authoritatively. For member-removed /
+ * visibility-changed we re-verify each affected user against api-service and
+ * only remove those who really lost access (fail closed if it is unreachable).
+ */
+async function handleChannelEvent(event: ChannelEvent) {
+  const conns = connectionsInChannel(event.channelId);
+  if (conns.length === 0) return;
+
+  if (event.type === 'channel-deleted') {
+    for (const c of conns) removeConnection(c, CHANNEL_REMOVED_REASONS.deleted);
+    return;
+  }
+
+  const byUser = new Map<string, Connection[]>();
+  for (const c of conns) {
+    if (event.type === 'channel-member-removed' && c.userId !== event.userId) continue;
+    byUser.set(c.userId, [...(byUser.get(c.userId) ?? []), c]);
+  }
+  const reason =
+    event.type === 'channel-member-removed'
+      ? CHANNEL_REMOVED_REASONS[event.reason ?? 'removed']
+      : CHANNEL_REMOVED_REASONS.made_private;
+  for (const [userId, userConns] of byUser) {
+    const lookup = await lookupAccess(event.channelId, userId, userConns[0].email);
+    if (lookup.status === 'ok' && lookup.access.canAccess) continue;
+    if (lookup.status === 'unreachable' && knownPublicPlainChannel(event.channelId)) continue;
+    logger.info({ channelId: event.channelId, userId, event: event.type }, 'removing peer that lost channel access');
+    for (const c of userConns) if (c.room?.channelId === event.channelId) removeConnection(c, reason);
+  }
+}
+
+async function handleStreamEvent(event: StreamEvent) {
+  if (
+    event.type === 'channel-member-removed' ||
+    event.type === 'channel-deleted' ||
+    event.type === 'channel-visibility-changed'
+  ) {
+    await handleChannelEvent(event);
+    return;
+  }
   if (event.type === 'stream-ended') {
     cancelHostAbsentTimer(event.streamId);
     const room = roomManager.getRoom(event.streamId);
@@ -578,6 +671,23 @@ export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
           case 'request-speak': {
             const { room, peer } = requireStreamRoom(conn);
             if (peer.role !== 'listener') throw new Error('only listeners can request to speak');
+            const cooldownUntil = room.speakCooldownUntil.get(peer.userId) ?? 0;
+            if (cooldownUntil > Date.now()) {
+              const retryAfterMs = cooldownUntil - Date.now();
+              throw new MediaError(
+                'speak_cooldown',
+                `Your last request was declined. You can ask to speak again in ${Math.ceil(retryAfterMs / 1000)}s.`,
+                { retryAfterMs }
+              );
+            }
+            // At most one pending request per user (a second tab cannot stack another).
+            if (!room.pendingSpeakRequests.has(peer.id)) {
+              for (const pid of room.pendingSpeakRequests) {
+                if (room.peers.get(pid)?.userId === peer.userId) {
+                  throw new MediaError('speak_request_pending', 'You already have a pending request to speak.');
+                }
+              }
+            }
             if (!room.pendingSpeakRequests.has(peer.id)) {
               room.pendingSpeakRequests.add(peer.id);
               notifyManagers(room, {
@@ -630,7 +740,17 @@ export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
             const { room } = requireManager(conn);
             const target = targetPeer(room, req.payload as PeerTargetPayload);
             if (!room.pendingSpeakRequests.delete(target.id)) throw new Error('no pending request from that peer');
-            const resolved: SpeakRequestResolvedNotification = { peerId: target.id, approved: false };
+            const cooldownMs = env.SPEAK_REQUEST_COOLDOWN_SEC * 1000;
+            if (cooldownMs > 0) {
+              const now = Date.now();
+              for (const [uid, until] of room.speakCooldownUntil) if (until <= now) room.speakCooldownUntil.delete(uid);
+              room.speakCooldownUntil.set(target.userId, now + cooldownMs);
+            }
+            const resolved: SpeakRequestResolvedNotification = {
+              peerId: target.id,
+              approved: false,
+              ...(cooldownMs > 0 ? { retryAfterMs: cooldownMs } : {}),
+            };
             sendToPeer(room, target.id, { notification: 'speak-request-resolved', payload: resolved });
             notifyManagers(room, { notification: 'speak-request-resolved', payload: resolved }, target.id);
             send(ws, ok(req.id));
@@ -672,8 +792,13 @@ export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
             send(ws, fail(req.id, `unknown request type: ${req.type}`));
         }
       } catch (err) {
-        logger.error({ err, type: req.type }, 'media request failed');
-        send(ws, fail(req.id, (err as Error).message));
+        if (err instanceof MediaError) {
+          logger.warn({ code: err.code, type: req.type, userId: conn.userId }, `media request denied: ${err.message}`);
+          send(ws, { id: req.id, ok: false, error: err.message, code: err.code, ...err.extra });
+        } else {
+          logger.error({ err, type: req.type }, 'media request failed');
+          send(ws, fail(req.id, (err as Error).message));
+        }
       }
     });
 

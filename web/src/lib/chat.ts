@@ -4,6 +4,7 @@ import type {
   ChatMessagePayload,
   ChatMessageDeletedPayload,
   ChatErrorPayload,
+  ChannelRemovedPayload,
   MessageAttachment,
   StreamWarningPayload,
   StreamMutedPayload,
@@ -18,6 +19,8 @@ export interface ChatCallbacks {
   onHistory: (payload: ChatHistoryPayload) => void;
   onMessage: (payload: ChatMessagePayload) => void;
   onError?: (payload: ChatErrorPayload) => void;
+  /** The server took us out of a channel (removed / left / deleted / made private). Arrives for any channel, not just the open one. */
+  onChannelRemoved?: (payload: ChannelRemovedPayload) => void;
   // Stream-only (all optional; plain text channels ignore them).
   onMessageDeleted?: (payload: ChatMessageDeletedPayload) => void;
   onStreamWarning?: (payload: StreamWarningPayload) => void;
@@ -38,6 +41,7 @@ export function connectChat(accessToken: string, callbacks: ChatCallbacks): Sock
   socket.on('chat:error', (payload: ChatErrorPayload) => callbacks.onError?.(payload));
   socket.on('connect_error', (err) => callbacks.onError?.({ message: err.message }));
 
+  if (callbacks.onChannelRemoved) socket.on('channel:removed', callbacks.onChannelRemoved);
   if (callbacks.onMessageDeleted) socket.on('chat:message-deleted', callbacks.onMessageDeleted);
   if (callbacks.onStreamWarning) socket.on('stream:warning', callbacks.onStreamWarning);
   if (callbacks.onStreamMuted) socket.on('stream:muted', callbacks.onStreamMuted);

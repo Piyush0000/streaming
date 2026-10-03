@@ -7,6 +7,11 @@ export interface User {
   createdAt: string;
 }
 
+export type ChannelVisibility = 'public' | 'private';
+
+/** Membership role within a channel. Public channels have an owner too, but membership never gates access to them. */
+export type ChannelRole = 'owner' | 'mod' | 'member';
+
 export interface Channel {
   id: string;
   name: string;
@@ -14,7 +19,131 @@ export interface Channel {
   kind: 'text' | 'voice' | 'stream';
   createdBy: string;
   createdAt: string;
+  visibility: ChannelVisibility;
+  /** Owner-configured participant limit (voice only); null = platform default. */
+  maxParticipants: number | null;
+  /** The limit that is actually enforced for the room (voice: min(setting, env cap) or env default; stream: env; text: null). */
+  effectiveMaxParticipants: number | null;
+  /** The caller's role, or null when not a member (e.g. any public channel they never joined). */
+  myRole: ChannelRole | null;
+  /** Rows in channel_members (public channels: owner + invite joiners only). */
+  memberCount: number;
 }
+
+// --- Private channels / members / invites (api-service REST) ---
+
+export interface CreateChannelRequest {
+  name: string;
+  topic?: string;
+  kind?: 'text' | 'voice';
+  visibility?: ChannelVisibility;
+  /** Voice only; 2..VOICE_ROOM_MAX_PEERS. */
+  maxParticipants?: number;
+}
+
+export interface UpdateChannelRequest {
+  name?: string;
+  topic?: string | null;
+  visibility?: ChannelVisibility;
+  /** Voice only; null resets to the platform default. */
+  maxParticipants?: number | null;
+}
+
+export interface ChannelMember {
+  userId: string;
+  username: string;
+  role: ChannelRole;
+  joinedAt: string;
+}
+
+/** Exactly one of username / email. */
+export interface AddChannelMemberRequest {
+  username?: string;
+  email?: string;
+}
+
+export interface UpdateMemberRoleRequest {
+  role: 'mod' | 'member';
+}
+
+export interface CreateInviteRequest {
+  /** 1..720, default 168 (7 days). */
+  expiresInHours?: number;
+  /** 1..1000; omitted/null = unlimited. */
+  maxUses?: number | null;
+}
+
+/** Response of POST /channels/:id/invites. The UI builds the link as `/invite/<token>`. */
+export interface CreatedInvite {
+  token: string;
+  expiresAt: string;
+  maxUses: number | null;
+}
+
+export type InviteStatus = 'active' | 'expired' | 'exhausted';
+
+/** One row of GET /channels/:id/invites (revoked invites are excluded). */
+export interface ChannelInvite {
+  token: string;
+  createdBy: string;
+  createdByUsername: string;
+  createdAt: string;
+  expiresAt: string;
+  maxUses: number | null;
+  uses: number;
+  status: InviteStatus;
+}
+
+export type InviteInvalidReason = 'expired' | 'revoked' | 'exhausted' | 'not_found';
+
+/** Response of GET /invites/:token (always HTTP 200; check `valid`). */
+export interface InvitePreview {
+  valid: boolean;
+  reason?: InviteInvalidReason;
+  /** null only when reason === 'not_found'. */
+  channel: {
+    id: string;
+    name: string;
+    kind: Channel['kind'];
+    visibility: ChannelVisibility;
+    memberCount: number;
+  } | null;
+  /** The caller is already a member (accepting is a no-op). */
+  alreadyMember: boolean;
+}
+
+/** Response of POST /invites/:token/accept. */
+export interface InviteAcceptResponse {
+  channel: Channel;
+  alreadyMember: boolean;
+}
+
+/**
+ * Stable `error` codes returned by the channel / invite REST endpoints
+ * (HTTP status in comments; every error body also has a readable `message`
+ * except the legacy 401/500 ones).
+ */
+export type ChannelApiErrorCode =
+  | 'invalid_input' // 400
+  | 'unsupported_channel_kind' // 400: stream channels are managed via /streams
+  | 'missing_token' // 401
+  | 'invalid_token' // 401
+  | 'forbidden' // 403 (insufficient role)
+  | 'owner_cannot_leave' // 403
+  | 'cannot_remove_owner' // 403
+  | 'cannot_change_owner' // 403
+  | 'channel_not_found' // 404 (also: private channel the caller cannot see)
+  | 'user_not_found' // 404
+  | 'member_not_found' // 404
+  | 'invite_not_found' // 404
+  | 'channel_name_taken' // 409
+  | 'already_member' // 409
+  | 'channel_full' // 409 (PRIVATE_CHANNEL_MAX_MEMBERS reached)
+  | 'too_many_invites' // 409 (50 active invites per channel)
+  | 'invite_expired' // 410 (accept only)
+  | 'invite_revoked' // 410
+  | 'invite_exhausted' // 410
+  | 'internal_error'; // 500
 
 export interface MessageAttachment {
   url: string;
@@ -158,6 +287,13 @@ export interface FollowStats {
 export interface ChannelAccess {
   channelId: string;
   kind: Channel['kind'];
+  visibility: ChannelVisibility;
+  /** public -> always true; private -> member or platform admin. */
+  canAccess: boolean;
+  isMember: boolean;
+  myRole: ChannelRole | null;
+  /** Effective participant limit for the room (voice: setting bounded by env / env default; stream: env; text: null). */
+  maxParticipants: number | null;
   isStream: boolean;
   status?: StreamStatus;
   hostId?: string;
@@ -187,7 +323,30 @@ export interface StreamEndedEvent {
   streamId: string;
 }
 
-export type StreamEvent = StreamModerationEvent | StreamEndedEvent;
+/** A member of a PRIVATE channel was removed or left (published only for private channels). */
+export interface ChannelMemberRemovedEvent {
+  type: 'channel-member-removed';
+  channelId: string;
+  userId: string;
+  reason?: 'removed' | 'left';
+}
+
+export interface ChannelDeletedEvent {
+  type: 'channel-deleted';
+  channelId: string;
+}
+
+/** Visibility changed; consumers must re-verify everyone connected to the channel. */
+export interface ChannelVisibilityChangedEvent {
+  type: 'channel-visibility-changed';
+  channelId: string;
+  visibility?: ChannelVisibility;
+}
+
+export type ChannelEvent = ChannelMemberRemovedEvent | ChannelDeletedEvent | ChannelVisibilityChangedEvent;
+
+/** Everything carried on the `stream.events` pub/sub channel (stream + channel lifecycle). */
+export type StreamEvent = StreamModerationEvent | StreamEndedEvent | ChannelEvent;
 
 // ---------------------------------------------------------------------------
 // Chat WebSocket (Socket.IO) event payloads
@@ -230,6 +389,8 @@ export interface ChatMessageDeletedPayload {
 }
 
 export type ChatErrorCode =
+  | 'not_member'
+  | 'rate_limited'
   | 'banned'
   | 'muted'
   | 'stream_ended'
@@ -244,6 +405,17 @@ export interface ChatErrorPayload {
   /** Machine-readable reason; absent on legacy generic errors. */
   code?: ChatErrorCode;
   channelId?: string;
+  /** Present when code === 'rate_limited'. */
+  retryAfterMs?: number;
+}
+
+export type ChannelRemovedReason = 'removed' | 'left' | 'deleted' | 'made_private';
+
+/** Server -> client (to `user:<id>`): you lost access to a channel; the socket was removed from its room. */
+export interface ChannelRemovedPayload {
+  channelId: string;
+  reason: ChannelRemovedReason;
+  message: string;
 }
 
 /** Server -> client (to `user:<id>`): the host warned this user. */
@@ -303,11 +475,27 @@ export interface MediaRequest<T = unknown> {
   payload: T;
 }
 
+/** Stable machine-readable reasons a media request failed (in addition to the readable `error`). */
+export type MediaErrorCode =
+  | 'room_full'
+  | 'forbidden'
+  | 'access_unavailable'
+  | 'banned'
+  | 'stream_ended'
+  | 'speak_cooldown'
+  | 'speak_request_pending';
+
 export interface MediaResponse<T = unknown> {
   id: string;
   ok: boolean;
   payload?: T;
   error?: string;
+  /** Present on some failures; absent for legacy generic errors. */
+  code?: MediaErrorCode;
+  /** code === 'room_full': unique users in the room / enforced limit. */
+  capacity?: { current: number; max: number };
+  /** code === 'speak_cooldown'. */
+  retryAfterMs?: number;
 }
 
 /** Server -> client push notifications (not responses to a request). */
@@ -470,6 +658,8 @@ export interface SpeakRequestResolvedNotification {
   peerId: string;
   approved: boolean;
   cancelled?: boolean;
+  /** On a denial: the requester may ask again after this many ms. */
+  retryAfterMs?: number;
 }
 
 /** To a peer just before the server closes its socket (kick/ban/remove-peer). */

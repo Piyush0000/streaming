@@ -1,8 +1,14 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 import { cx } from '../lib/format';
 
-/** Shared dialog shell: backdrop, Esc-to-close, accessible title. */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Shared dialog shell: backdrop, Esc-to-close, accessible title, focus moved
+ * into the dialog on open, Tab trapped inside, focus restored on close.
+ */
 export default function Modal({
   title,
   onClose,
@@ -19,10 +25,47 @@ export default function Modal({
   dismissible?: boolean;
   tone?: 'default' | 'warning' | 'danger';
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+
   useEffect(() => {
-    if (!dismissible) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.contains(document.activeElement)) {
+      // Prefer a field/body control over the header's close button.
+      const body = dialog.querySelector<HTMLElement>(`[data-modal-body] :is(${FOCUSABLE.replace(/, /g, ',')})`);
+      (body ?? dialog.querySelector<HTMLElement>(FOCUSABLE) ?? dialog).focus();
+    }
+    return () => {
+      if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus();
+    };
+  }, []);
+
+  useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && dismissible) {
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const items = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.offsetParent !== null);
+      if (items.length === 0) {
+        e.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || !dialog.contains(active))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || !dialog.contains(active))) {
+        e.preventDefault();
+        first.focus();
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -34,11 +77,13 @@ export default function Modal({
       onClick={dismissible ? onClose : undefined}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label={typeof title === 'string' ? title : undefined}
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className={cx(
-          'flex max-h-[92dvh] w-full flex-col rounded-t-xl border bg-panel shadow-2xl sm:rounded-xl',
+          'flex max-h-[92dvh] w-full flex-col rounded-t-xl border bg-panel shadow-2xl outline-none sm:rounded-xl',
           size === 'sm' && 'sm:max-w-sm',
           size === 'md' && 'sm:max-w-md',
           size === 'lg' && 'sm:max-w-xl',
@@ -49,7 +94,9 @@ export default function Modal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
-          <h2 className="min-w-0 truncate text-base font-semibold text-text-primary">{title}</h2>
+          <h2 id={titleId} className="min-w-0 truncate text-base font-semibold text-text-primary">
+            {title}
+          </h2>
           {dismissible && (
             <button
               onClick={onClose}
@@ -60,7 +107,9 @@ export default function Modal({
             </button>
           )}
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        <div data-modal-body className="min-h-0 flex-1 overflow-y-auto">
+          {children}
+        </div>
       </div>
     </div>
   );

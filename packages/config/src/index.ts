@@ -87,6 +87,42 @@ export const streamEnvSchema = {
   LR21_BRIDGE_SECRET: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
 };
 
+/** Positive integer env var with a default; empty/unset -> default, invalid -> fatal at startup. */
+function intEnv(name: string, def: number, min = 1, max = 100_000) {
+  return z.preprocess(
+    emptyToUndefined,
+    z.coerce
+      .number({ invalid_type_error: `${name} must be a number` })
+      .int(`${name} must be an integer`)
+      .min(min, `${name} must be >= ${min}`)
+      .max(max, `${name} must be <= ${max}`)
+      .default(def)
+  );
+}
+
+/** Platform-wide room / membership capacity limits (protects the shared 4-CPU host). */
+export const roomLimitsEnvSchema = {
+  /** Upper bound for a voice channel's owner-settable maxParticipants; also the default when unset. */
+  VOICE_ROOM_MAX_PEERS: intEnv('VOICE_ROOM_MAX_PEERS', 25, 2, 1000),
+  /** Max unique users in a live stream room (host + platform admins always allowed). */
+  STREAM_ROOM_MAX_PEERS: intEnv('STREAM_ROOM_MAX_PEERS', 150, 2, 10_000),
+  /** Max members of a private channel. */
+  PRIVATE_CHANNEL_MAX_MEMBERS: intEnv('PRIVATE_CHANNEL_MAX_MEMBERS', 200, 2, 100_000),
+};
+
+/** chat-service rate limiting (Redis counters; fails open if Redis is down). */
+export const chatRateLimitEnvSchema = {
+  CHAT_RATE_LIMIT_MESSAGES: intEnv('CHAT_RATE_LIMIT_MESSAGES', 10, 1, 10_000),
+  CHAT_RATE_LIMIT_WINDOW_SEC: intEnv('CHAT_RATE_LIMIT_WINDOW_SEC', 10, 1, 3600),
+  /** Max file uploads per user per minute. */
+  UPLOAD_RATE_LIMIT_PER_MINUTE: intEnv('UPLOAD_RATE_LIMIT_PER_MINUTE', 5, 1, 1000),
+};
+
+/** media-service: how long a listener must wait after a denied speak request. */
+export const speakRequestEnvSchema = {
+  SPEAK_REQUEST_COOLDOWN_SEC: intEnv('SPEAK_REQUEST_COOLDOWN_SEC', 10, 0, 3600),
+};
+
 export const authServiceEnvSchema = z.object({
   ...commonEnvSchema,
   ...postgresEnvSchema,
@@ -102,6 +138,7 @@ export const apiServiceEnvSchema = z.object({
   ...redisEnvSchema, // publishes stream events (pub/sub)
   ...internalApiEnvSchema,
   ...streamEnvSchema,
+  ...roomLimitsEnvSchema,
 });
 export type ApiServiceEnv = z.infer<typeof apiServiceEnvSchema>;
 
@@ -110,6 +147,7 @@ export const chatServiceEnvSchema = z.object({
   ...postgresEnvSchema,
   ...redisEnvSchema,
   ...apiClientEnvSchema,
+  ...chatRateLimitEnvSchema,
 });
 export type ChatServiceEnv = z.infer<typeof chatServiceEnvSchema>;
 
@@ -117,6 +155,8 @@ export const mediaServiceEnvSchema = z.object({
   ...commonEnvSchema,
   ...redisEnvSchema,
   ...apiClientEnvSchema,
+  VOICE_ROOM_MAX_PEERS: roomLimitsEnvSchema.VOICE_ROOM_MAX_PEERS,
+  ...speakRequestEnvSchema,
   MEDIASOUP_LISTEN_IP: z.string().default('0.0.0.0'),
   MEDIASOUP_ANNOUNCED_IP: z.string().min(1, 'MEDIASOUP_ANNOUNCED_IP is required'),
   MEDIASOUP_MIN_PORT: z.coerce.number().int().positive().default(40000),

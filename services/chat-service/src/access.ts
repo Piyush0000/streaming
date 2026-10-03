@@ -1,7 +1,7 @@
 import type { ChannelAccess } from '@streaming/shared-types';
 import { env } from './env';
 import { logger } from './logger';
-import { getChannelKindFromDb } from './db';
+import { getChannelGateFromDb } from './db';
 
 const LOOKUP_TIMEOUT_MS = 2500;
 
@@ -9,8 +9,11 @@ export type AccessLookup =
   | { status: 'ok'; access: ChannelAccess }
   /** api-service says the channel doesn't exist (chat keeps today's behaviour for it). */
   | { status: 'not_found' }
-  /** api-service unreachable / errored. `isStream` is best-effort knowledge from the DB. */
-  | { status: 'unreachable'; isStream: boolean | 'unknown' };
+  /**
+   * api-service unreachable / errored. `failClosed` is best-effort knowledge
+   * from the DB: true for streams, private channels and anything unknown.
+   */
+  | { status: 'unreachable'; failClosed: boolean };
 
 /**
  * Asks api-service (authoritative) what this user may do in a channel.
@@ -43,10 +46,11 @@ export async function lookupAccess(
   }
 
   try {
-    const kind = await getChannelKindFromDb(channelId);
-    return { status: 'unreachable', isStream: kind === undefined ? false : kind === 'stream' };
+    const gate = await getChannelGateFromDb(channelId);
+    if (!gate) return { status: 'not_found' }; // not in the shared DB either: it does not exist
+    return { status: 'unreachable', failClosed: gate.kind === 'stream' || gate.visibility !== 'public' };
   } catch (err) {
-    logger.warn({ err, channelId }, 'channel kind fallback lookup failed');
-    return { status: 'unreachable', isStream: 'unknown' };
+    logger.warn({ err, channelId }, 'channel gate fallback lookup failed');
+    return { status: 'unreachable', failClosed: true };
   }
 }

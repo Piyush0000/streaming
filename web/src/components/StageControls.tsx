@@ -1,5 +1,6 @@
 import type { PeerRole } from '@streaming/shared-types';
-import { Hand, Mic, MicOff, Monitor, MonitorOff, RotateCw } from 'lucide-react';
+import { Hand, Mic, MicOff, Monitor, MonitorOff, RotateCw, Timer } from 'lucide-react';
+import { useCountdown } from '../hooks/useCountdown';
 import type { MicState, SpeakRequestState } from '../hooks/useStreamMedia';
 import ErrorBanner from './ErrorBanner';
 import Spinner from './Spinner';
@@ -22,6 +23,7 @@ export default function StageControls({
   speakRequest,
   onRequestSpeak,
   onCancelSpeakRequest,
+  speakCooldownUntil,
 }: {
   role: PeerRole;
   micState: MicState;
@@ -35,14 +37,17 @@ export default function StageControls({
   speakRequest: SpeakRequestState;
   onRequestSpeak: () => void;
   onCancelSpeakRequest: () => void;
+  /** Epoch ms until which asking to speak again is blocked (after a denial). */
+  speakCooldownUntil?: number | null;
 }) {
+  const cooldownSecs = useCountdown(speakCooldownUntil);
   if (role === 'listener') {
     return (
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-panel px-4 py-3">
         {speakRequest === 'pending' ? (
           <>
-            <span className="flex items-center gap-2 text-sm text-text-secondary">
-              <Spinner size={14} /> Request sent - waiting for host
+            <span role="status" className="flex items-center gap-2 text-sm text-text-secondary">
+              <Spinner size={14} /> Request pending - waiting for the host
             </span>
             <button
               onClick={onCancelSpeakRequest}
@@ -53,12 +58,19 @@ export default function StageControls({
           </>
         ) : (
           <>
-            <span className="text-sm text-text-secondary">You're listening. Want to join the conversation?</span>
+            <span className="text-sm text-text-secondary">
+              {cooldownSecs > 0
+                ? 'Your last request was declined. You can ask again shortly.'
+                : "You're listening. Want to join the conversation?"}
+            </span>
             <button
               onClick={onRequestSpeak}
-              className="ml-auto flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
+              disabled={cooldownSecs > 0}
+              aria-live="polite"
+              className="ml-auto flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-hover disabled:text-text-secondary disabled:hover:bg-hover"
             >
-              <Hand size={15} /> Request to speak
+              {cooldownSecs > 0 ? <Timer size={15} /> : <Hand size={15} />}
+              {cooldownSecs > 0 ? `Ask again in ${cooldownSecs}s` : 'Request to speak'}
             </button>
           </>
         )}

@@ -3,6 +3,7 @@ import { Router, Request, Response } from 'express';
 import type { MessageAttachment } from '@streaming/shared-types';
 import { logger } from '../logger';
 import { requireAuth } from '../middleware/requireAuth';
+import { checkUploadRateLimit } from '../rateLimit';
 import { upload, UPLOADS_DIR, isSafeUploadFilename } from '../upload';
 
 export const uploadsRouter = Router();
@@ -10,7 +11,18 @@ export const uploadsRouter = Router();
 // POST /uploads — multipart/form-data, field name "file". Requires auth so
 // only logged-in users can write to disk. Returns attachment metadata the
 // client then sends along with a chat:send message.
-uploadsRouter.post('/', requireAuth, (req: Request, res: Response) => {
+uploadsRouter.post('/', requireAuth, async (req: Request, res: Response) => {
+  // Per-user limit, checked BEFORE the body is parsed/written to disk.
+  const rl = await checkUploadRateLimit(req.user!.sub);
+  if (!rl.allowed) {
+    const retryAfterSec = Math.ceil(rl.retryAfterMs / 1000);
+    res.setHeader('Retry-After', String(retryAfterSec));
+    return res.status(429).json({
+      error: 'rate_limited',
+      message: `You are uploading too fast. Try again in ${retryAfterSec}s.`,
+      retryAfterMs: rl.retryAfterMs,
+    });
+  }
   upload.single('file')(req, res, (err: unknown) => {
     if (err) {
       const message = err instanceof Error ? err.message : 'upload failed';

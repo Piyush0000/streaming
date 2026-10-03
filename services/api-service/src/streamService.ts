@@ -4,6 +4,8 @@ import type {
   StreamEligibility,
   StreamViewerState,
   ChannelAccess,
+  ChannelRole,
+  ChannelVisibility,
   ModerationUserState,
 } from '@streaming/shared-types';
 import { pool } from './db';
@@ -15,6 +17,17 @@ type Queryable = Pick<PoolClient, 'query'>;
 
 export function isAdminEmail(email: string | undefined | null): boolean {
   return !!email && env.STREAM_ADMIN_EMAILS.includes(email.trim().toLowerCase());
+}
+
+/**
+ * The participant limit actually enforced for a channel's live room:
+ * voice -> the owner's setting bounded by VOICE_ROOM_MAX_PEERS (or that env
+ * default when unset); stream -> STREAM_ROOM_MAX_PEERS; text -> none.
+ */
+export function effectiveMaxParticipants(kind: string, setting: number | null | undefined): number | null {
+  if (kind === 'stream') return env.STREAM_ROOM_MAX_PEERS;
+  if (kind === 'voice') return Math.min(setting ?? env.VOICE_ROOM_MAX_PEERS, env.VOICE_ROOM_MAX_PEERS);
+  return null;
 }
 
 export function toStream(row: any): Stream {
@@ -112,13 +125,27 @@ export async function getChannelAccess(
   userId: string,
   email: string
 ): Promise<ChannelAccess | undefined> {
-  const { rows } = await pool.query('SELECT id, kind FROM channels WHERE id = $1', [channelId]);
+  const { rows } = await pool.query(
+    `SELECT c.id, c.kind, c.visibility, c.max_participants,
+            (SELECT role FROM channel_members WHERE channel_id = c.id AND user_id = $2) AS my_role
+     FROM channels c WHERE c.id = $1`,
+    [channelId, userId]
+  );
   const channel = rows[0];
   if (!channel) return undefined;
+
+  const myRole: ChannelRole | null = channel.my_role ?? null;
+  const isMember = myRole !== null;
+  const canAccess = channel.visibility === 'public' || isMember || isAdminEmail(email);
 
   const base = {
     channelId,
     kind: channel.kind,
+    visibility: channel.visibility as ChannelVisibility,
+    canAccess,
+    isMember,
+    myRole,
+    maxParticipants: effectiveMaxParticipants(channel.kind, channel.max_participants),
     isHost: false,
     isAdmin: false,
     banned: false,

@@ -160,6 +160,11 @@ streamsRouter.post('/', requireAuth, async (req: Request, res: Response) => {
         `INSERT INTO channels (name, topic, kind, created_by) VALUES ($1, $2, 'stream', $3) RETURNING id`,
         [name, parsed.data.title.slice(0, 256), user.sub]
       );
+      await client.query(
+        `INSERT INTO channel_members (channel_id, user_id, role, added_by) VALUES ($1, $2, 'owner', $2)
+         ON CONFLICT DO NOTHING`,
+        [channel.rows[0].id, user.sub]
+      );
       const stream = await client.query(
         `INSERT INTO streams (id, host_id, host_username, title, description)
          VALUES ($1, $2, $3, $4, $5) RETURNING *`,

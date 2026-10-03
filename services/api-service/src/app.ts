@@ -5,6 +5,7 @@ import { logger } from './logger';
 import { pingDb } from './db';
 import { pingRedis } from './redis';
 import { channelsRouter } from './routes/channels';
+import { channelInvitesRouter, invitesRouter } from './routes/invites';
 import { guidelinesRouter } from './routes/guidelines';
 import { streamsRouter } from './routes/streams';
 import { usersRouter } from './routes/users';
@@ -35,6 +36,8 @@ app.get('/readyz', async (_req, res) => {
 });
 
 app.use('/channels', channelsRouter);
+app.use('/channels', channelInvitesRouter);
+app.use('/invites', invitesRouter);
 app.use('/guidelines', guidelinesRouter);
 app.use('/streams', streamsRouter);
 app.use('/users', usersRouter);

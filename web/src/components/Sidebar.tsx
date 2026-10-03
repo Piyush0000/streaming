@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import type { Channel } from '@streaming/shared-types';
-import { Hash, LogOut, Plus, Radio, Volume2, X } from 'lucide-react';
+import type { Channel, CreateChannelRequest } from '@streaming/shared-types';
+import { Hash, Lock, LogOut, Plus, Radio, Volume2, X } from 'lucide-react';
 import { useLiveStreams } from '../context/LiveStreamsContext';
-import { createChannel, listChannels } from '../lib/api';
+import { createChannel } from '../lib/channels';
+import { useChannels } from '../context/ChannelsContext';
 import { useSession } from '../context/SessionContext';
 import Avatar from './Avatar';
 import CreateChannelModal from './CreateChannelModal';
@@ -23,36 +24,16 @@ export default function Sidebar({
   const { channelId, streamId } = useParams();
   const live = useLiveStreams();
 
-  const [channels, setChannels] = useState<Channel[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { channels, loading, error, refresh } = useChannels();
+  const [dismissedError, setDismissedError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
-  async function refresh() {
+  async function handleCreate(request: CreateChannelRequest) {
     if (!session) return;
-    try {
-      setError(null);
-      const list = await listChannels(session.accessToken);
-      setChannels(list);
-    } catch (err) {
-      const message = (err as Error).message;
-      setError(message);
-      if (message.toLowerCase().includes('token')) logout();
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.accessToken]);
-
-  async function handleCreate(name: string, topic: string, kind: 'text' | 'voice') {
-    if (!session) return;
-    const channel = await createChannel(session.accessToken, name, topic, kind);
+    const channel = await createChannel(session.accessToken, request);
     await refresh();
     navigate(`/channels/${channel.id}`);
+    onCloseMobile();
   }
 
   const textChannels = channels.filter((c) => c.kind !== 'voice');
@@ -153,9 +134,12 @@ export default function Sidebar({
             </div>
           )}
 
-          {!loading && error && (
-            <div className="mb-3 px-1">
-              <ErrorBanner message={error} onDismiss={() => setError(null)} />
+          {!loading && error && error !== dismissedError && (
+            <div className="mb-3 flex flex-col gap-1.5 px-1">
+              <ErrorBanner message={error} onDismiss={() => setDismissedError(error)} />
+              <button onClick={() => void refresh()} className="self-start text-xs font-medium text-accent hover:underline">
+                Retry
+              </button>
             </div>
           )}
 
@@ -269,7 +253,13 @@ function ChannelGroup({
                 ) : (
                   <Hash size={16} className="shrink-0 text-text-muted" />
                 )}
-                <span className="truncate">{c.name}</span>
+                <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                {c.visibility === 'private' && (
+                  <>
+                    <Lock size={12} className="shrink-0 text-text-muted" aria-hidden />
+                    <span className="sr-only">(private channel)</span>
+                  </>
+                )}
               </button>
             </li>
           );

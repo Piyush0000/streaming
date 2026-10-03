@@ -21,6 +21,7 @@ export default function VoicePanel({
   isSharingScreen,
   onStartScreenShare,
   onStopScreenShare,
+  maxParticipants,
 }: {
   voiceState: VoiceState;
   voiceError: string | null;
@@ -35,15 +36,29 @@ export default function VoicePanel({
   isSharingScreen: boolean;
   onStartScreenShare: () => void;
   onStopScreenShare: () => void;
+  /** The channel's effective room limit (effectiveMaxParticipants), when known. */
+  maxParticipants?: number | null;
 }) {
   const connected = voiceState === 'connected';
   const connecting = voiceState === 'connecting';
+  // The server counts unique users, so a second tab of the same person is one seat.
+  const inRoom = new Set(remotePeers.map((p) => p.username)).size + (connected ? 1 : 0);
+  const full = !!maxParticipants && connected && inRoom >= maxParticipants;
 
   return (
     <div className="flex w-full flex-col border-b border-border bg-panel md:w-72 md:shrink-0 md:border-b-0 md:border-l">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3">
         <Volume2 size={16} className="text-text-muted" />
         <h2 className="text-sm font-semibold text-text-primary">Voice</h2>
+        {!!maxParticipants && (
+          <span
+            className={cx('rounded-full px-2 py-0.5 text-[11px] font-medium', full ? 'bg-warning/15 text-warning' : 'bg-hover text-text-secondary')}
+            title="People in the room / room limit"
+            aria-label={connected ? `${inRoom} of ${maxParticipants} people in the room` : `Room limit: ${maxParticipants} people`}
+          >
+            {connected ? `${inRoom} / ${maxParticipants}` : `Max ${maxParticipants}`}
+          </span>
+        )}
         {connected && (
           <span className="ml-auto flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
             <Radio size={11} /> Live

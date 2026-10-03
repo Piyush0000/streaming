@@ -83,9 +83,21 @@ export async function softDeleteMessage(
  * Postgres, so ask it directly whether a channel is a stream.
  * Returns undefined if the channel row doesn't exist.
  */
-export async function getChannelKindFromDb(channelId: string): Promise<string | undefined> {
-  const { rows } = await pool.query('SELECT kind FROM channels WHERE id = $1', [channelId]);
-  return rows[0]?.kind;
+export async function getChannelGateFromDb(
+  channelId: string
+): Promise<{ kind: string; visibility: string } | undefined> {
+  const { rows } = await pool.query('SELECT kind, visibility FROM channels WHERE id = $1', [channelId]);
+  return rows[0] ? { kind: rows[0].kind, visibility: rows[0].visibility } : undefined;
+}
+
+/**
+ * Hard-deletes every message of a deleted channel (triggered by the
+ * `channel-deleted` event). Idempotent: every chat-service instance runs it.
+ * Uploaded files referenced by those messages are left on disk.
+ */
+export async function purgeChannelMessages(channelId: string): Promise<number> {
+  const { rowCount } = await pool.query('DELETE FROM messages WHERE channel_id = $1', [channelId]);
+  return rowCount ?? 0;
 }
 
 export async function getRecentMessages(channelId: string, limit = 50): Promise<Message[]> {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 import type {
+  ChannelRemovedPayload,
   Message,
   MessageAttachment,
   StreamRemovedPayload,
@@ -14,6 +15,10 @@ export interface StreamChatEvents {
   onRemoved: (payload: StreamRemovedPayload) => void;
   onEnded: () => void;
   onAuthError: () => void;
+  /** The server took us out of a channel (arrives for any channel, not only this stream). */
+  onChannelRemoved: (payload: ChannelRemovedPayload) => void;
+  /** Chat says we may no longer see this room. */
+  onAccessDenied: () => void;
 }
 
 /** Chat socket for one stream: history, live messages, deletions, mute state and moderation pushes. */
@@ -41,6 +46,7 @@ export function useStreamChat({
   const [loading, setLoading] = useState(true);
   const [chatError, setChatError] = useState<string | null>(null);
   const [muted, setMuted] = useState(initialMuted);
+  const [rateLimitedUntil, setRateLimitedUntil] = useState<number | null>(null);
 
   useEffect(() => {
     setMuted(initialMuted);
@@ -75,6 +81,12 @@ export function useStreamChat({
           return;
         }
         switch (payload.code) {
+          case 'rate_limited':
+            setRateLimitedUntil(Date.now() + (payload.retryAfterMs ?? 3000));
+            return;
+          case 'not_member':
+            eventsRef.current.onAccessDenied();
+            return;
           case 'muted':
             setMuted(true);
             return;
@@ -88,6 +100,7 @@ export function useStreamChat({
             setChatError(payload.message);
         }
       },
+      onChannelRemoved: (payload) => eventsRef.current.onChannelRemoved(payload),
       onStreamWarning: (payload) => {
         if (payload.streamId === streamId) eventsRef.current.onWarning(payload);
       },
@@ -131,6 +144,7 @@ export function useStreamChat({
     chatError,
     dismissChatError: () => setChatError(null),
     muted,
+    rateLimitedUntil,
     send,
     remove,
     setAtBottom: (atBottom: boolean) => {

@@ -84,6 +84,16 @@ export function resolveAttachmentUrl(attachment: MessageAttachment): string {
   return `${UPLOADS_BASE_URL}/${filename}`;
 }
 
+/** Thrown by uploads when the server answers HTTP 429 (`{error:'rate_limited', retryAfterMs}` + Retry-After). */
+export class RateLimitedError extends Error {
+  readonly retryAfterMs: number;
+  constructor(retryAfterMs: number) {
+    super(`You are doing that too fast. Try again in ${Math.max(1, Math.ceil(retryAfterMs / 1000))}s.`);
+    this.name = 'RateLimitedError';
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
 export async function uploadFile(accessToken: string, file: File): Promise<MessageAttachment> {
   const form = new FormData();
   form.append('file', file);
@@ -92,23 +102,15 @@ export async function uploadFile(accessToken: string, file: File): Promise<Messa
     headers: { Authorization: `Bearer ${accessToken}` },
     body: form,
   });
+  if (res.status === 429) {
+    const body = await res.json().catch(() => ({}));
+    const header = Number(res.headers.get('Retry-After'));
+    const retryAfterMs =
+      typeof body?.retryAfterMs === 'number' ? body.retryAfterMs : Number.isFinite(header) && header > 0 ? header * 1000 : 5000;
+    throw new RateLimitedError(retryAfterMs);
+  }
   const body = await parseJsonOrThrow(res);
   return body.attachment;
-}
-
-export async function createChannel(
-  accessToken: string,
-  name: string,
-  topic: string,
-  kind: Channel['kind'] = 'text'
-): Promise<Channel> {
-  const res = await fetch(`${API_BASE_URL}/channels`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-    body: JSON.stringify({ name, topic: topic || undefined, kind }),
-  });
-  const body = await parseJsonOrThrow(res);
-  return body.channel;
 }
 
 // ---------------------------------------------------------------------------
@@ -139,11 +141,28 @@ const FRIENDLY_ERRORS: Record<string, string> = {
   forbidden: 'You do not have permission to do that.',
   internal_error: 'Something went wrong on our side. Please try again.',
   user_not_found: 'That user no longer exists.',
+  channel_not_found: "This channel doesn't exist, or you don't have access to it.",
+  unsupported_channel_kind: 'Stream channels are managed from the Live section, not here.',
+  channel_name_taken: 'A channel with that name already exists.',
+  owner_cannot_leave: 'The owner cannot leave the channel. Delete it instead.',
+  cannot_remove_owner: 'The channel owner cannot be removed.',
+  cannot_change_owner: "The owner's role cannot be changed.",
+  member_not_found: 'That user is not a member of this channel.',
+  already_member: 'That user is already a member.',
+  channel_full: 'This channel has reached its member limit.',
+  too_many_invites: 'This channel has too many active invites. Revoke one first.',
+  invite_not_found: 'This invite link is not valid.',
+  invite_expired: 'This invite link has expired.',
+  invite_revoked: 'This invite link was revoked.',
+  invite_exhausted: 'This invite link has reached its maximum number of uses.',
+  rate_limited: 'You are doing that too fast. Please wait a moment.',
+  invalid_token: 'Your session has expired. Please sign in again.',
+  missing_token: 'Your session has expired. Please sign in again.',
 };
 
 export async function apiRequest<T>(
   accessToken: string,
-  method: 'GET' | 'POST' | 'DELETE',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   path: string,
   body?: unknown
 ): Promise<T> {

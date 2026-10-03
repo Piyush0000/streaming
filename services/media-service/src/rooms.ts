@@ -58,6 +58,20 @@ export interface Room extends RoomMeta {
   pendingSpeakRequests: Set<string>;
   /** Stream rooms: userIds approved to speak, so a reconnect keeps the role while the room lives. */
   speakerUserIds: Set<string>;
+  /** Stream rooms: userId -> epoch ms until which a denied listener may not ask to speak again. */
+  speakCooldownUntil: Map<string, number>;
+}
+
+/** Unique users currently in the room (one user with several tabs counts once). */
+export function uniqueUserCount(room: Room): number {
+  const ids = new Set<string>();
+  for (const p of room.peers.values()) ids.add(p.userId);
+  return ids.size;
+}
+
+export function hasUser(room: Room, userId: string): boolean {
+  for (const p of room.peers.values()) if (p.userId === userId) return true;
+  return false;
 }
 
 /**
@@ -102,6 +116,7 @@ export class RoomManager {
       peers: new Map(),
       pendingSpeakRequests: new Set(),
       speakerUserIds: new Set(),
+      speakCooldownUntil: new Map(),
     };
     this.rooms.set(channelId, room);
     logger.info({ channelId, isStream: meta.isStream }, 'created voice room');

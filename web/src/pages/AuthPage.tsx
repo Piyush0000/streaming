@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Waves } from 'lucide-react';
 import { useSession } from '../context/SessionContext';
 import ErrorBanner from '../components/ErrorBanner';
 import { renderGoogleSignInButton } from '../lib/googleAuth';
+import { clearPostLoginPath, resolvePostLoginTarget } from '../lib/redirect';
 
 export default function AuthPage() {
   const { setSession } = useSession();
   const navigate = useNavigate();
+  const location = useLocation();
   const buttonContainerRef = useRef<HTMLDivElement>(null);
 
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +30,10 @@ export default function AuthPage() {
           accessToken: result.accessToken,
           refreshToken: result.refreshToken,
         });
-        navigate('/channels', { replace: true });
+        // Return to the page the user was headed for (e.g. an invite link); falls back to /channels.
+        const target = resolvePostLoginTarget((location.state as { from?: unknown } | null)?.from);
+        clearPostLoginPath();
+        navigate(target, { replace: true });
       } catch (err) {
         if (!cancelled) setError((err as Error).message || 'Google sign-in failed. Please try again.');
       }

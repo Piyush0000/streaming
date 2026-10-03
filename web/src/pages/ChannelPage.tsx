@@ -1,17 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import type { Socket } from 'socket.io-client';
 import type { Channel, Message, MessageAttachment } from '@streaming/shared-types';
-import { Hash, Volume2 } from 'lucide-react';
+import { Hash, Lock, Users, Volume2 } from 'lucide-react';
 import { connectChat, joinChannel, leaveChannel, sendMessage } from '../lib/chat';
-import { VoiceClient, RemotePeerAudio, RemotePeerVideo } from '../lib/media';
-import { listChannels } from '../lib/api';
+import { VoiceClient, RemotePeerAudio, RemotePeerVideo, describeMediaJoinError } from '../lib/media';
+import { getChannel, isChannelGone } from '../lib/channels';
 import { useSession } from '../context/SessionContext';
+import { useChannels } from '../context/ChannelsContext';
+import { useToast } from '../context/ToastContext';
+import { useChannelRemoved } from '../hooks/useChannelRemoved';
 import { playJoinSound, playLeaveSound, playMessageSound } from '../lib/sounds';
 import MessageList from '../components/MessageList';
 import MessageComposer from '../components/MessageComposer';
 import VoicePanel, { VoiceState } from '../components/VoicePanel';
 import ErrorBanner from '../components/ErrorBanner';
+import AccessDenied from '../components/AccessDenied';
+import ChannelSettingsModal from '../components/ChannelSettingsModal';
 
 const screenShareSupported =
   typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia;
@@ -19,13 +24,21 @@ const screenShareSupported =
 export default function ChannelPage() {
   const { session, logout } = useSession();
   const { channelId } = useParams<{ channelId: string }>();
+  const navigate = useNavigate();
+  const { refresh: refreshChannels } = useChannels();
+  const { showToast } = useToast();
+  const { handleChannelRemoved, markSelfInitiated } = useChannelRemoved();
 
   const [channel, setChannel] = useState<Channel | null>(null);
   const [channelsLoading, setChannelsLoading] = useState(true);
+  /** Private/deleted/unknown channel: GET 404 or a `not_member` chat error. */
+  const [denied, setDenied] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [rateLimitedUntil, setRateLimitedUntil] = useState<number | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
@@ -43,28 +56,35 @@ export default function ChannelPage() {
   // "am I looking at the bottom of this channel" answer.
   const isAtBottomRef = useRef(true);
 
-  // Look up the channel's own metadata (name/topic/kind) for the header.
-  useEffect(() => {
-    let cancelled = false;
+  // Look up the channel's own metadata (name/topic/kind/role) for the header.
+  const loadChannel = useCallback(async () => {
     if (!session || !channelId) return;
+    try {
+      const ch = await getChannel(session.accessToken, channelId);
+      setChannel(ch);
+      setDenied(false);
+    } catch (err) {
+      if (isChannelGone(err)) setDenied(true);
+      /* anything else: header is cosmetic - chat below still works */
+    }
+  }, [session, channelId]);
+
+  useEffect(() => {
+    setChannel(null);
+    setDenied(false);
+    setSettingsOpen(false);
+    setRateLimitedUntil(null);
     setChannelsLoading(true);
-    listChannels(session.accessToken)
-      .then((list) => {
-        if (cancelled) return;
-        setChannel(list.find((c) => c.id === channelId) ?? null);
-      })
-      .catch(() => {
-        /* header is cosmetic — chat below still works even if this fails */
-      })
-      .finally(() => !cancelled && setChannelsLoading(false));
+    let cancelled = false;
+    loadChannel().finally(() => !cancelled && setChannelsLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [session, channelId]);
+  }, [loadChannel]);
 
-  // Chat connection — one socket per channel visited.
+  // Chat connection - one socket per channel visited.
   useEffect(() => {
-    if (!session || !channelId) return;
+    if (!session || !channelId || denied) return;
     setMessages([]);
     setMessagesLoading(true);
     setChatError(null);
@@ -87,9 +107,21 @@ export default function ChannelPage() {
         }
       },
       onError: (payload) => {
+        if (payload.code === 'not_member' && (!payload.channelId || payload.channelId === channelId)) {
+          setMessagesLoading(false);
+          setDenied(true);
+          return;
+        }
+        if (payload.code === 'rate_limited') {
+          setRateLimitedUntil(Date.now() + (payload.retryAfterMs ?? 3000));
+          return;
+        }
         setChatError(payload.message);
         setMessagesLoading(false);
         if (payload.message.toLowerCase().includes('token')) logout();
+      },
+      onChannelRemoved: (payload) => {
+        handleChannelRemoved(payload, { current: payload.channelId === channelId, fallbackPath: '/channels' });
       },
     });
     socketRef.current = socket;
@@ -100,7 +132,7 @@ export default function ChannelPage() {
       socket.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, channelId]);
+  }, [session, channelId, denied]);
 
   // Leave voice automatically when navigating away from the channel entirely.
   useEffect(() => {
@@ -113,6 +145,15 @@ export default function ChannelPage() {
   function handleSend(content: string, attachment?: MessageAttachment | null) {
     if (!socketRef.current || !channelId) return;
     sendMessage(socketRef.current, channelId, content, attachment);
+  }
+
+  function resetVoiceUi() {
+    setVoiceState('idle');
+    setRemotePeers(new Map());
+    setRemoteScreenShares(new Map());
+    setLocalScreenStream(null);
+    setIsSharingScreen(false);
+    setMuted(false);
   }
 
   async function handleJoinVoice() {
@@ -147,26 +188,39 @@ export default function ChannelPage() {
           playLeaveSound();
         },
         onError: (message) => setVoiceError(message),
+        // The server dropped us (removed from the channel, kicked, channel deleted / made private).
+        onRemoved: (reason) => {
+          const gone = voiceClientRef.current;
+          voiceClientRef.current = null;
+          void gone?.leave();
+          resetVoiceUi();
+          setVoiceError(reason || 'You were removed from the voice room.');
+        },
+        onDisconnected: () => {
+          voiceClientRef.current = null;
+          resetVoiceUi();
+          setVoiceError('Lost the connection to the voice room. Join again to reconnect.');
+        },
       });
       voiceClientRef.current = client;
       await client.joinAndPublish(channelId);
       setMuted(false);
       setVoiceState('connected');
     } catch (err) {
-      setVoiceError((err as Error).message);
+      // Release the half-open signaling socket (e.g. after room_full / forbidden).
+      const failed = voiceClientRef.current;
+      voiceClientRef.current = null;
+      void failed?.leave();
+      setVoiceError(describeMediaJoinError(err));
       setVoiceState('error');
     }
   }
 
   async function handleLeaveVoice() {
-    await voiceClientRef.current?.leave();
+    const client = voiceClientRef.current;
     voiceClientRef.current = null;
-    setVoiceState('idle');
-    setRemotePeers(new Map());
-    setRemoteScreenShares(new Map());
-    setLocalScreenStream(null);
-    setIsSharingScreen(false);
-    setMuted(false);
+    await client?.leave();
+    resetVoiceUi();
   }
 
   async function handleStartScreenShare() {
@@ -182,7 +236,7 @@ export default function ChannelPage() {
     } catch (err) {
       const name = (err as DOMException)?.name;
       // The user cancelling the browser's own screen-picker dialog rejects
-      // the promise — that's a normal cancel, not an error worth surfacing.
+      // the promise - that's a normal cancel, not an error worth surfacing.
       if (name === 'NotAllowedError' || name === 'AbortError') return;
       setVoiceError((err as Error).message);
     }
@@ -200,25 +254,57 @@ export default function ChannelPage() {
     setMuted(next);
   }
 
+  // ---- channel settings callbacks ----------------------------------------
+
+  function afterLeaveOrDelete(message: string) {
+    if (channelId) markSelfInitiated(channelId);
+    setSettingsOpen(false);
+    showToast(message, 'success');
+    void refreshChannels();
+    navigate('/channels', { replace: true });
+  }
+
   if (!channelId) return null;
+
+  if (denied) return <AccessDenied />;
+
+  const canOpenSettings = !!channel && channel.kind !== 'stream';
 
   return (
     <div className="flex h-full flex-col md:flex-row">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4">
           {channel?.kind === 'voice' ? (
-            <Volume2 size={18} className="text-text-muted" />
+            <Volume2 size={18} className="shrink-0 text-text-muted" />
           ) : (
-            <Hash size={18} className="text-text-muted" />
+            <Hash size={18} className="shrink-0 text-text-muted" />
           )}
           <h1 className="truncate text-sm font-semibold text-text-primary">
             {channelsLoading ? 'Loading…' : channel?.name ?? 'Channel'}
           </h1>
+          {channel?.visibility === 'private' && (
+            <span className="flex shrink-0 items-center gap-1 text-text-muted" title="Private channel">
+              <Lock size={13} aria-hidden />
+              <span className="sr-only">Private channel</span>
+            </span>
+          )}
           {channel?.topic && (
             <>
-              <span className="text-text-muted">·</span>
-              <p className="truncate text-sm text-text-secondary">{channel.topic}</p>
+              <span className="hidden text-text-muted sm:inline">·</span>
+              <p className="hidden min-w-0 truncate text-sm text-text-secondary sm:block">{channel.topic}</p>
             </>
+          )}
+          {canOpenSettings && (
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
+              aria-label="Channel members and settings"
+              aria-haspopup="dialog"
+              title="Members & settings"
+            >
+              <Users size={16} aria-hidden />
+              <span className="hidden sm:inline">Members</span>
+            </button>
           )}
         </div>
 
@@ -281,6 +367,7 @@ export default function ChannelPage() {
           onSend={handleSend}
           accessToken={session?.accessToken ?? ''}
           placeholder={channel ? `Message #${channel.name}` : 'Say something...'}
+          rateLimitedUntil={rateLimitedUntil}
         />
       </div>
 
@@ -298,7 +385,25 @@ export default function ChannelPage() {
         isSharingScreen={isSharingScreen}
         onStartScreenShare={handleStartScreenShare}
         onStopScreenShare={handleStopScreenShare}
+        maxParticipants={channel?.effectiveMaxParticipants}
       />
+
+      {settingsOpen && channel && (
+        <ChannelSettingsModal
+          channel={channel}
+          onClose={() => setSettingsOpen(false)}
+          onMembersChanged={() => {
+            void loadChannel();
+            void refreshChannels();
+          }}
+          onUpdated={(updated) => {
+            setChannel(updated);
+            void refreshChannels();
+          }}
+          onLeft={() => afterLeaveOrDelete(`You left #${channel.name}.`)}
+          onDeleted={() => afterLeaveOrDelete(`#${channel.name} was deleted.`)}
+        />
+      )}
     </div>
   );
 }

@@ -9,10 +9,11 @@ import type {
   StreamWarningPayload,
 } from '@streaming/shared-types';
 import { STREAM_MAX_WARNINGS } from '../lib/streamLimits';
-import { Ban, Hand, Info, Radio, SearchX, ShieldAlert, UserX } from 'lucide-react';
+import { Ban, Hand, Info, Lock, Radio, SearchX, ShieldAlert, UserX } from 'lucide-react';
 import { useSession } from '../context/SessionContext';
 import { useToast } from '../context/ToastContext';
 import { useLiveStreams } from '../context/LiveStreamsContext';
+import { useChannelRemoved } from '../hooks/useChannelRemoved';
 import { ApiError } from '../lib/api';
 import {
   endStream,
@@ -65,6 +66,7 @@ export default function StreamPage() {
   const { showToast } = useToast();
   const { refresh: refreshLive } = useLiveStreams();
   const navigate = useNavigate();
+  const { handleChannelRemoved } = useChannelRemoved();
 
   const token = session?.accessToken;
   const selfId = session?.user.id ?? '';
@@ -76,6 +78,7 @@ export default function StreamPage() {
   const [removed, setRemoved] = useState<RemovedNotice | null>(null);
   const [warning, setWarning] = useState<StreamWarningPayload | null>(null);
   const [tab, setTab] = useState<SideTab>('chat');
+  const [accessDenied, setAccessDenied] = useState(false);
   const asideRef = useRef<HTMLElement>(null);
 
   // ---- stream detail ------------------------------------------------------
@@ -87,6 +90,7 @@ export default function StreamPage() {
     setEnded(false);
     setRemoved(null);
     setWarning(null);
+    setAccessDenied(false);
     setTab('chat');
     getStream(token, streamId)
       .then(({ stream, me }) => !cancelled && setLoad({ kind: 'ready', stream, me }))
@@ -131,6 +135,8 @@ export default function StreamPage() {
       onRemoved: (p) => handleRemoved({ action: p.action, reason: p.reason, fromChat: true }),
       onEnded: markEnded,
       onAuthError: logout,
+      onAccessDenied: () => setAccessDenied(true),
+      onChannelRemoved: (p) => handleChannelRemoved(p, { current: p.channelId === streamId, fallbackPath: '/live' }),
     },
   });
 
@@ -350,6 +356,17 @@ export default function StreamPage() {
     );
   }
 
+  if (accessDenied) {
+    return (
+      <NoticeScreen
+        icon={<Lock size={28} />}
+        tone="warning"
+        title="You don't have access to this stream"
+        message="You can no longer see this room."
+      />
+    );
+  }
+
   if (removed) {
     const isBan = removed.action === 'ban';
     return (
@@ -415,12 +432,14 @@ export default function StreamPage() {
           {isLive && media.status === 'error' && media.joinError && (
             <div className="flex flex-col gap-2">
               <ErrorBanner message={media.joinError} />
-              <button
-                onClick={media.reconnect}
-                className="w-fit rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-white hover:bg-accent-hover"
-              >
-                Reconnect
-              </button>
+              {!media.joinFatal && (
+                <button
+                  onClick={media.reconnect}
+                  className="w-fit rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-white hover:bg-accent-hover"
+                >
+                  {media.joinError.includes('full') ? 'Try again' : 'Reconnect'}
+                </button>
+              )}
             </div>
           )}
 
@@ -466,6 +485,7 @@ export default function StreamPage() {
                   speakRequest={media.speakRequest}
                   onRequestSpeak={media.requestSpeak}
                   onCancelSpeakRequest={media.cancelSpeakRequest}
+                  speakCooldownUntil={media.speakCooldownUntil}
                 />
               )}
 
@@ -516,7 +536,12 @@ export default function StreamPage() {
                 The host muted you. You can read chat but can't send messages.
               </ChatNotice>
             ) : (
-              <MessageComposer onSend={chat.send} accessToken={token ?? ''} placeholder="Message the room" />
+              <MessageComposer
+                onSend={chat.send}
+                accessToken={token ?? ''}
+                placeholder="Message the room"
+                rateLimitedUntil={chat.rateLimitedUntil}
+              />
             )}
           </div>
         )}

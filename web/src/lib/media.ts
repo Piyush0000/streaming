@@ -20,6 +20,7 @@ import type {
   SpeakRequestedNotification,
   SpeakRequestResolvedNotification,
   RemovedNotification,
+  MediaErrorCode,
 } from '@streaming/shared-types';
 
 const MEDIA_WS_URL = import.meta.env.VITE_MEDIA_WS_URL ?? '/ws/media';
@@ -31,6 +32,41 @@ function resolveWsUrl(accessToken: string): string {
   }
   const separator = MEDIA_WS_URL.includes('?') ? '&' : '?';
   return `${MEDIA_WS_URL}${separator}token=${encodeURIComponent(accessToken)}`;
+}
+
+/** A media-service request that failed, carrying the machine-readable code and extras the server sent. */
+export class MediaRequestError extends Error {
+  readonly code?: MediaErrorCode;
+  readonly capacity?: { current: number; max: number };
+  readonly retryAfterMs?: number;
+  constructor(message: string, extra: { code?: MediaErrorCode; capacity?: { current: number; max: number }; retryAfterMs?: number } = {}) {
+    super(message);
+    this.name = 'MediaRequestError';
+    this.code = extra.code;
+    this.capacity = extra.capacity;
+    this.retryAfterMs = extra.retryAfterMs;
+  }
+}
+
+/** User-facing text for a failed join-room (voice channel or stream). */
+export function describeMediaJoinError(err: unknown): string {
+  if (err instanceof MediaRequestError) {
+    switch (err.code) {
+      case 'room_full':
+        return err.capacity ? `This room is full (${err.capacity.current}/${err.capacity.max}).` : 'This room is full.';
+      case 'forbidden':
+        return "You don't have access to this room. If it's a private channel, you need to be a member.";
+      case 'access_unavailable':
+        return "We couldn't verify your access right now. Please try again in a moment.";
+      case 'banned':
+        return 'You are banned from this stream.';
+      case 'stream_ended':
+        return 'This stream has ended.';
+      default:
+        break;
+    }
+  }
+  return (err as Error)?.message || 'Could not join the room.';
 }
 
 export interface RemotePeerAudio {
@@ -61,7 +97,7 @@ export interface VoiceClientCallbacks {
   /** Host/admin only: a listener asked to speak. */
   onSpeakRequested?: (request: SpeakRequestInfo) => void;
   /** A speak request was approved / denied / cancelled (for us, or - for managers - for anyone). */
-  onSpeakRequestResolved?: (info: { peerId: string; approved: boolean; cancelled?: boolean }) => void;
+  onSpeakRequestResolved?: (info: { peerId: string; approved: boolean; cancelled?: boolean; retryAfterMs?: number }) => void;
   /** The server removed us (kick/ban/remove-peer); the socket closes right after. */
   onRemoved?: (reason: string) => void;
   onStreamEnded?: () => void;
@@ -132,7 +168,15 @@ export class VoiceClient {
       if (!pending) return;
       this.pendingRequests.delete(msg.id);
       if (msg.ok) pending.resolve(msg.payload);
-      else pending.reject(new Error(msg.error ?? 'request failed'));
+      else {
+        pending.reject(
+          new MediaRequestError(msg.error ?? 'request failed', {
+            code: msg.code,
+            capacity: msg.capacity,
+            retryAfterMs: msg.retryAfterMs,
+          })
+        );
+      }
       return;
     }
     this.handleNotification(msg);

@@ -11,15 +11,20 @@ export type AccessLookup =
   | { status: 'unreachable' };
 
 /**
- * channelId -> "is a stream?" learned from earlier successful lookups. Only
- * used as a fallback when api-service is unreachable: a channel previously
- * confirmed as a plain voice channel keeps working; anything unknown or
- * stream-like fails closed.
+ * channelId -> what earlier successful lookups told us. Only used as a
+ * fallback when api-service is unreachable: a channel previously confirmed as
+ * a PUBLIC plain voice channel keeps working (today's behaviour); anything
+ * unknown, stream-like or private fails closed.
  */
-const knownIsStream = new Map<string, boolean>();
+const knownPublicPlain = new Map<string, { publicPlain: boolean; maxParticipants: number | null }>();
 
-export function knownNotStream(channelId: string): boolean {
-  return knownIsStream.get(channelId) === false;
+export function knownPublicPlainChannel(channelId: string): boolean {
+  return knownPublicPlain.get(channelId)?.publicPlain === true;
+}
+
+/** Last known enforced limit for a channel (fallback when api-service is unreachable). */
+export function knownMaxParticipants(channelId: string): number | null {
+  return knownPublicPlain.get(channelId)?.maxParticipants ?? null;
 }
 
 export async function lookupAccess(channelId: string, userId: string, email: string): Promise<AccessLookup> {
@@ -34,10 +39,16 @@ export async function lookupAccess(channelId: string, userId: string, email: str
       headers: { 'x-internal-secret': env.INTERNAL_API_SECRET },
       signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
     });
-    if (res.status === 404) return { status: 'not_found' };
+    if (res.status === 404) {
+      knownPublicPlain.delete(channelId);
+      return { status: 'not_found' };
+    }
     if (!res.ok) throw new Error(`api-service responded ${res.status}`);
     const access = (await res.json()) as ChannelAccess;
-    knownIsStream.set(channelId, access.isStream);
+    knownPublicPlain.set(channelId, {
+      publicPlain: !access.isStream && (access.visibility ?? 'public') === 'public',
+      maxParticipants: access.maxParticipants ?? null,
+    });
     return { status: 'ok', access };
   } catch (err) {
     logger.warn({ err, channelId }, 'api-service access lookup failed');

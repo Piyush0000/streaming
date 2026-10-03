@@ -20,10 +20,16 @@ import type {
   StreamRemovedPayload,
   StreamEndedPayload,
   ChannelAccess,
+  ChannelEvent,
+  ChannelRemovedPayload,
+  ChannelRemovedReason,
+  ChannelRole,
+  ChannelVisibility,
 } from '@streaming/shared-types';
 import { env } from './env';
 import { logger } from './logger';
-import { insertMessage, getRecentMessages, getLiveMessageAuthor, softDeleteMessage } from './db';
+import { insertMessage, getRecentMessages, getLiveMessageAuthor, softDeleteMessage, purgeChannelMessages } from './db';
+import { checkChatRateLimit } from './rateLimit';
 import { redisPub, redisConsume, redisSub, CHAT_STREAM, CHAT_CONSUMER_GROUP } from './redis';
 import { lookupAccess } from './access';
 
@@ -34,6 +40,9 @@ interface AuthedSocket extends Socket {
 }
 
 interface ChannelState {
+  canAccess: boolean;
+  visibility: ChannelVisibility;
+  myRole: ChannelRole | null;
   isStream: boolean;
   status?: 'live' | 'ended';
   isHost: boolean;
@@ -44,8 +53,12 @@ interface ChannelState {
   checkedAt: number;
 }
 
-/** Stream states are re-verified against api-service at most this often on send/delete. */
+/** Stream + private-channel states are re-verified against api-service at most this often on send/delete. */
 const STATE_TTL_MS = 10_000;
+/** Public plain channels change rarely; re-verify lazily (events handle visibility flips immediately). */
+const PUBLIC_STATE_TTL_MS = 60_000;
+/** Safety net against a lost pub/sub event: periodically re-verify every private-channel membership we hold. */
+const PRIVATE_SWEEP_INTERVAL_MS = 60_000;
 
 const CHAT_MESSAGE_EVENT = 'chat.message';
 const CHAT_MESSAGE_DELETED_EVENT = 'chat.message-deleted';
@@ -66,6 +79,9 @@ function emitError(socket: Socket, code: ChatErrorCode, message: string, channel
 
 function stateFromAccess(access: ChannelAccess): ChannelState {
   return {
+    canAccess: access.canAccess ?? true,
+    visibility: access.visibility ?? 'public',
+    myRole: access.myRole ?? null,
     isStream: access.isStream,
     status: access.status,
     isHost: access.isHost,
@@ -78,8 +94,28 @@ function stateFromAccess(access: ChannelAccess): ChannelState {
 }
 
 function plainState(): ChannelState {
-  return { isStream: false, isHost: false, isAdmin: false, banned: false, muted: false, warnings: 0, checkedAt: Date.now() };
+  return {
+    canAccess: true,
+    visibility: 'public',
+    myRole: null,
+    isStream: false,
+    isHost: false,
+    isAdmin: false,
+    banned: false,
+    muted: false,
+    warnings: 0,
+    checkedAt: Date.now(),
+  };
 }
+
+const NO_ACCESS_MESSAGE = 'You do not have access to this channel.';
+
+const REMOVED_MESSAGES: Record<ChannelRemovedReason, string> = {
+  removed: 'You were removed from this channel.',
+  left: 'You left this channel.',
+  deleted: 'This channel was deleted.',
+  made_private: 'This channel is now private and you are not a member.',
+};
 
 type EnsureResult = { ok: true; state: ChannelState } | { ok: false; code: ChatErrorCode; message: string };
 
@@ -101,8 +137,10 @@ async function ensureState(
 ): Promise<EnsureResult> {
   const cache = (socket.chan ??= new Map());
   const cached = cache.get(channelId);
-  if (cached && !cached.isStream) return { ok: true, state: cached };
-  if (cached && !opts.force && Date.now() - cached.checkedAt < STATE_TTL_MS) return { ok: true, state: cached };
+  if (cached && !opts.force) {
+    const ttl = cached.isStream || cached.visibility === 'private' ? STATE_TTL_MS : PUBLIC_STATE_TTL_MS;
+    if (Date.now() - cached.checkedAt < ttl) return { ok: true, state: cached };
+  }
 
   const user = socket.user!;
   const lookup = await lookupAccess(channelId, user.sub, user.email);
@@ -113,21 +151,21 @@ async function ensureState(
     return { ok: true, state };
   }
   if (lookup.status === 'not_found') {
-    const state = plainState();
-    cache.set(channelId, state);
-    return { ok: true, state };
+    // Deleted / unknown channel. Same answer as "private and not yours" so existence never leaks.
+    cache.delete(channelId);
+    return { ok: false, code: 'not_member', message: NO_ACCESS_MESSAGE };
   }
   // unreachable
-  if (lookup.isStream === false) {
-    const state = plainState();
+  if (cached) return { ok: true, state: cached }; // refresh failed: keep the last known state
+  if (!lookup.failClosed) {
+    const state = plainState(); // public plain channel: same behaviour as before this feature
     cache.set(channelId, state);
     return { ok: true, state };
   }
-  if (cached) return { ok: true, state: cached }; // known stream, refresh failed: keep last state
   return {
     ok: false,
     code: 'access_unavailable',
-    message: 'Could not verify your access to this stream right now. Please try again.',
+    message: 'Could not verify your access to this channel right now. Please try again.',
   };
 }
 
@@ -180,6 +218,11 @@ export function createSocketServer(httpServer: HttpServer): Server {
           emitError(socket, ensured.code, ensured.message, payload.channelId);
           return;
         }
+        if (!ensured.state.canAccess) {
+          logger.info({ userId: user.sub, channelId: payload.channelId }, 'non-member denied chat join');
+          emitError(socket, 'not_member', NO_ACCESS_MESSAGE, payload.channelId);
+          return;
+        }
         if (ensured.state.banned) {
           logger.info({ userId: user.sub, channelId: payload.channelId }, 'banned user denied chat join');
           emitError(socket, 'banned', 'You are banned from this stream.', payload.channelId);
@@ -222,6 +265,10 @@ export function createSocketServer(httpServer: HttpServer): Server {
           return;
         }
         const { state } = ensured;
+        if (!state.canAccess) {
+          emitError(socket, 'not_member', NO_ACCESS_MESSAGE, payload.channelId);
+          return;
+        }
         if (state.banned) {
           emitError(socket, 'banned', 'You are banned from this stream.', payload.channelId);
           return;
@@ -232,6 +279,19 @@ export function createSocketServer(httpServer: HttpServer): Server {
         }
         if (state.isStream && state.status === 'ended') {
           emitError(socket, 'stream_ended', 'This stream has ended.', payload.channelId);
+          return;
+        }
+
+        // Per-user rate limit (Redis counter; fails open with an error log if Redis is down).
+        const rl = await checkChatRateLimit(user.sub);
+        if (!rl.allowed) {
+          const secs = Math.max(1, Math.ceil(rl.retryAfterMs / 1000));
+          socket.emit('chat:error', {
+            message: `You are sending messages too fast. Try again in ${secs}s.`,
+            code: 'rate_limited',
+            channelId: payload.channelId,
+            retryAfterMs: rl.retryAfterMs,
+          } satisfies ChatErrorPayload);
           return;
         }
 
@@ -271,16 +331,25 @@ export function createSocketServer(httpServer: HttpServer): Server {
           return;
         }
 
-        let allowed = message.userId === user.sub; // authors can always delete their own
-        if (!allowed) {
-          // Moderator path: verify host/admin authoritatively (fresh lookup).
-          const ensured = await ensureState(socket, payload.channelId, { force: true });
-          if (!ensured.ok) {
-            emitError(socket, ensured.code, ensured.message, payload.channelId);
-            return;
-          }
-          allowed = ensured.state.isStream && (ensured.state.isHost || ensured.state.isAdmin);
+        const isAuthor = message.userId === user.sub;
+        // Authors may delete their own messages, but only while they still have access to the channel.
+        // Moderator path (not author) always uses a fresh lookup so role changes apply immediately.
+        const ensured = await ensureState(socket, payload.channelId, { force: !isAuthor });
+        // An author whose access cannot be verified right now (api-service down) keeps today's behaviour.
+        const authorBlip = isAuthor && !ensured.ok && ensured.code === 'access_unavailable';
+        if (!ensured.ok && !authorBlip) {
+          emitError(socket, ensured.code, ensured.message, payload.channelId);
+          return;
         }
+        if (ensured.ok && !ensured.state.canAccess) {
+          emitError(socket, 'not_member', NO_ACCESS_MESSAGE, payload.channelId);
+          return;
+        }
+        const st = ensured.ok ? ensured.state : undefined;
+        // Streams: host / platform admin. Plain channels: channel owner / mod.
+        const allowed =
+          isAuthor ||
+          (!!st && (st.isStream ? st.isHost || st.isAdmin : st.myRole === 'owner' || st.myRole === 'mod'));
         if (!allowed) {
           logger.warn({ userId: user.sub, channelId: payload.channelId, messageId: payload.messageId }, 'chat:delete forbidden');
           emitError(socket, 'forbidden', 'You cannot delete this message.', payload.channelId);
@@ -333,11 +402,116 @@ export function createSocketServer(httpServer: HttpServer): Server {
     logger.error({ err }, 'chat stream consumer loop crashed');
   });
 
+  // --- Channel membership / lifecycle enforcement (private channels) --------
+
+  /** Takes every local socket of `userId` out of `channelId`'s room and tells the user once. */
+  function ejectUser(userId: string, channelId: string, reason: ChannelRemovedReason) {
+    const sockets = socketsByUser.get(userId);
+    if (!sockets) return;
+    for (const s of sockets) {
+      void s.leave(roomName(channelId));
+      s.chan?.delete(channelId);
+    }
+    io.to(userRoom(userId)).emit('channel:removed', {
+      channelId,
+      reason,
+      message: REMOVED_MESSAGES[reason],
+    } satisfies ChannelRemovedPayload);
+    logger.info({ userId, channelId, reason }, 'user ejected from channel');
+  }
+
+  /** Does this socket currently hold the channel (joined its room or cached state for it)? */
+  function holdsChannel(s: AuthedSocket, channelId: string): boolean {
+    return s.rooms.has(roomName(channelId)) || !!s.chan?.has(channelId);
+  }
+
+  /** Authoritatively re-checks a user's access; eject (and report) if they lost it. Unreachable api -> eject (fail closed). */
+  async function reverifyUser(userId: string, channelId: string, reason: ChannelRemovedReason) {
+    const sockets = socketsByUser.get(userId);
+    const first = sockets && sockets.values().next().value;
+    if (!first) return;
+    first.chan?.delete(channelId);
+    const lookup = await lookupAccess(channelId, userId, first.user!.email);
+    if (lookup.status === 'ok' && lookup.access.canAccess) {
+      // Still allowed (e.g. the channel is public): just drop stale cached roles on every socket.
+      for (const s of socketsByUser.get(userId) ?? []) s.chan?.delete(channelId);
+      return;
+    }
+    if (lookup.status === 'unreachable' && !lookup.failClosed) return; // public plain channel + api down
+    ejectUser(userId, channelId, reason);
+  }
+
+  async function handleChannelEvent(event: ChannelEvent) {
+    if (event.type === 'channel-member-removed') {
+      await reverifyUser(event.userId, event.channelId, event.reason ?? 'removed');
+      return;
+    }
+    if (event.type === 'channel-deleted') {
+      try {
+        const n = await purgeChannelMessages(event.channelId);
+        logger.info({ channelId: event.channelId, purged: n }, 'purged messages of deleted channel');
+      } catch (err) {
+        logger.error({ err, channelId: event.channelId }, 'failed to purge messages of deleted channel');
+      }
+      for (const [userId, set] of Array.from(socketsByUser.entries())) {
+        if (Array.from(set).some((s) => holdsChannel(s, event.channelId))) {
+          ejectUser(userId, event.channelId, 'deleted');
+        }
+      }
+      return;
+    }
+    if (event.type === 'channel-visibility-changed') {
+      const affected: string[] = [];
+      for (const [userId, set] of socketsByUser.entries()) {
+        if (Array.from(set).some((s) => holdsChannel(s, event.channelId))) affected.push(userId);
+      }
+      for (const userId of affected) await reverifyUser(userId, event.channelId, 'made_private');
+    }
+  }
+
+  // Safety net for a lost pub/sub message: periodically re-verify private-channel memberships we hold.
+  let sweeping = false;
+  const sweepTimer = setInterval(async () => {
+    if (sweeping) return;
+    sweeping = true;
+    try {
+      const pairs = new Map<string, { userId: string; channelId: string }>();
+      for (const [userId, set] of socketsByUser.entries()) {
+        for (const s of set) {
+          for (const [channelId, st] of s.chan ?? []) {
+            if (st.visibility === 'private') pairs.set(`${userId}:${channelId}`, { userId, channelId });
+          }
+        }
+      }
+      for (const { userId, channelId } of pairs.values()) {
+        const first = socketsByUser.get(userId)?.values().next().value;
+        if (!first) continue;
+        const lookup = await lookupAccess(channelId, userId, first.user!.email);
+        if (lookup.status === 'not_found' || (lookup.status === 'ok' && !lookup.access.canAccess)) {
+          ejectUser(userId, channelId, lookup.status === 'not_found' ? 'deleted' : 'removed');
+        }
+      }
+    } catch (err) {
+      logger.error({ err }, 'private channel sweep failed');
+    } finally {
+      sweeping = false;
+    }
+  }, PRIVATE_SWEEP_INTERVAL_MS);
+  sweepTimer.unref();
+
   // Stream moderation / lifecycle events (pub/sub: every instance sees every
   // event). Best-effort acceleration only; chat:join / chat:send re-verify
   // against api-service, so a missed event never lets a banned user in.
   redisSub.on('error', (err) => logger.error({ err }, 'redis subscriber error'));
-  subscribeStreamEvents(redisSub, (event: StreamEvent) => {
+  subscribeStreamEvents(redisSub, async (event: StreamEvent) => {
+    if (
+      event.type === 'channel-member-removed' ||
+      event.type === 'channel-deleted' ||
+      event.type === 'channel-visibility-changed'
+    ) {
+      await handleChannelEvent(event);
+      return;
+    }
     if (event.type === 'stream-ended') {
       for (const set of socketsByUser.values()) {
         for (const s of set) {
@@ -397,7 +571,10 @@ export function createSocketServer(httpServer: HttpServer): Server {
     }
   });
 
-  io.on('close', () => abortController.abort());
+  io.on('close', () => {
+    abortController.abort();
+    clearInterval(sweepTimer);
+  });
 
   return io;
 }

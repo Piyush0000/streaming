@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PeerRole, SpeakRequestInfo } from '@streaming/shared-types';
-import { VoiceClient, RemotePeerAudio, RemotePeerVideo } from '../lib/media';
+import { VoiceClient, MediaRequestError, describeMediaJoinError, RemotePeerAudio, RemotePeerVideo } from '../lib/media';
 import { playJoinSound, playLeaveSound, playSpeakRequestSound } from '../lib/sounds';
 
 export interface PeerState {
@@ -83,6 +83,9 @@ export function useStreamMedia({
 
   const [status, setStatus] = useState<JoinStatus>('idle');
   const [joinError, setJoinError] = useState<string | null>(null);
+  /** True when retrying can't help (no access / banned / ended), so the UI shouldn't offer Reconnect. */
+  const [joinFatal, setJoinFatal] = useState(false);
+  const [speakCooldownUntil, setSpeakCooldownUntil] = useState<number | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   const [peers, setPeers] = useState<Map<string, PeerState>>(new Map());
@@ -164,6 +167,7 @@ export function useStreamMedia({
 
     setStatus('connecting');
     setJoinError(null);
+    setJoinFatal(false);
 
     (async () => {
       try {
@@ -233,12 +237,19 @@ export function useStreamMedia({
             setPendingRequests((prev) => (prev.some((r) => r.peerId === req.peerId) ? prev : [...prev, req]));
             playSpeakRequestSound();
           },
-          onSpeakRequestResolved: ({ peerId, approved, cancelled }) => {
+          onSpeakRequestResolved: ({ peerId, approved, cancelled, retryAfterMs }) => {
             setPendingRequests((prev) => prev.filter((r) => r.peerId !== peerId));
             if (peerId === meRef.current?.peerId) {
               setSpeakRequest('none');
               if (!approved && !cancelled) {
-                eventsRef.current.notify('The host declined your request to speak.', 'info');
+                if (retryAfterMs && retryAfterMs > 0) setSpeakCooldownUntil(Date.now() + retryAfterMs);
+                const secs = retryAfterMs && retryAfterMs > 0 ? Math.ceil(retryAfterMs / 1000) : 0;
+                eventsRef.current.notify(
+                  secs > 0
+                    ? `The host declined your request to speak. You can ask again in ${secs}s.`
+                    : 'The host declined your request to speak.',
+                  'info'
+                );
               }
             }
           },
@@ -289,7 +300,9 @@ export function useStreamMedia({
       } catch (err) {
         if (cancelled) return;
         setStatus('error');
-        setJoinError((err as Error).message || 'Could not join the stream room.');
+        setJoinError(describeMediaJoinError(err) || 'Could not join the stream room.');
+        const code = err instanceof MediaRequestError ? err.code : undefined;
+        setJoinFatal(code === 'forbidden' || code === 'banned' || code === 'stream_ended');
       }
     })();
 
@@ -307,6 +320,7 @@ export function useStreamMedia({
       setLocalScreen(null);
       setPendingRequests([]);
       setSpeakRequest('none');
+      setSpeakCooldownUntil(null);
       setMicState('off');
       setMicStream(null);
       setMuted(false);
@@ -323,6 +337,15 @@ export function useStreamMedia({
       await clientRef.current?.requestToSpeak();
       setSpeakRequest('pending');
     } catch (err) {
+      if (err instanceof MediaRequestError && err.code === 'speak_request_pending') {
+        // Already queued server-side (e.g. from another tab): just reflect it.
+        setSpeakRequest('pending');
+        return;
+      }
+      if (err instanceof MediaRequestError && err.code === 'speak_cooldown') {
+        setSpeakCooldownUntil(Date.now() + (err.retryAfterMs ?? 5000));
+        return;
+      }
       eventsRef.current.notify((err as Error).message, 'error');
     }
   }, []);
@@ -446,6 +469,7 @@ export function useStreamMedia({
   return {
     status,
     joinError,
+    joinFatal,
     reconnect,
     me,
     myRole,
@@ -464,6 +488,7 @@ export function useStreamMedia({
     retryMic: startMic,
     toggleMute,
     speakRequest,
+    speakCooldownUntil,
     requestSpeak,
     cancelSpeakRequest,
     pendingRequests,

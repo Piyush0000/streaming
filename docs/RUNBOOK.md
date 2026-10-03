@@ -155,7 +155,7 @@ the containers stay up without restarting for 10s. If anything fails it restores
 file automatically. Exit codes: `0` deployed, `1` failed and rolled back cleanly, `2` rollback itself unhealthy
 (needs a human), `3` refused. Old sha-tagged images are pruned (current + previous are kept).
 
-**One-time setup (needs a GitHub repo admin):** add ONE repository secret, `VPS_SSH_KEY`
+**One-time setup (needs a GitHub repo admin):** add ONE secret, `VPS_SSH_KEY` (as a repository secret, or as a secret of an environment named exactly `production`)
 (Settings -> Secrets and variables -> Actions -> New repository secret), whose value is the full contents of the
 private key file, including the `-----BEGIN/END OPENSSH PRIVATE KEY-----` lines. Then delete the local copy.
 

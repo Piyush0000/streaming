@@ -51,6 +51,10 @@ jobs:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    # Lets VPS_SSH_KEY live as an *environment* secret (Settings -> Environments
+    # -> production) as well as a repository secret; repo secrets are visible
+    # to jobs that use an environment too. The name must be exactly "production".
+    environment: production
     # Never two deploys at once; a newer push waits for the running one.
     concurrency:
       group: streaming-production-deploy

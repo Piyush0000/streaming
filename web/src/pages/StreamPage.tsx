@@ -43,7 +43,8 @@ import MessageList from '../components/MessageList';
 import type { MessageAction } from '../components/MessageList';
 import MessageComposer from '../components/MessageComposer';
 import ErrorBanner from '../components/ErrorBanner';
-import { FullPageSpinner } from '../components/Spinner';
+import { StreamPageSkeleton } from '../components/Skeleton';
+import Dots from '../components/Dots';
 import { cx } from '../lib/format';
 
 type SideTab = 'chat' | 'requests' | 'moderation';
@@ -331,7 +332,7 @@ export default function StreamPage() {
 
   if (!streamId) return null;
 
-  if (load.kind === 'loading') return <FullPageSpinner label="Loading stream…" />;
+  if (load.kind === 'loading') return <StreamPageSkeleton />;
 
   if (load.kind === 'not_found') {
     return (
@@ -426,7 +427,9 @@ export default function StreamPage() {
           )}
 
           {isLive && media.status === 'connecting' && (
-            <p className="text-sm text-text-secondary">Joining the room…</p>
+            <p className="flex items-center gap-1.5 text-sm text-text-secondary">
+              Joining the room <Dots />
+            </p>
           )}
 
           {isLive && media.status === 'error' && media.joinError && (
@@ -451,9 +454,9 @@ export default function StreamPage() {
                 setTab('requests');
                 asideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }}
-              className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent-soft px-3 py-2 text-left text-sm text-text-primary hover:bg-accent-muted"
+              className="flex animate-slide-down items-center gap-2 rounded-lg border border-accent/40 bg-accent-soft px-3 py-2 text-left text-sm text-text-primary hover:bg-accent-muted"
             >
-              <Hand size={15} className="text-accent" />
+              <Hand size={15} className="origin-bottom animate-wiggle text-accent" />
               {requestCount} {requestCount === 1 ? 'person wants' : 'people want'} to speak - review
             </button>
           )}
@@ -516,7 +519,7 @@ export default function StreamPage() {
         </div>
 
         {tab === 'chat' && (
-          <div role="tabpanel" id="panel-chat" className="flex min-h-0 flex-1 flex-col">
+          <div role="tabpanel" id="panel-chat" className="flex min-h-0 flex-1 animate-fade-in flex-col">
             {chat.chatError && (
               <div className="px-4 pt-3">
                 <ErrorBanner message={chat.chatError} onDismiss={chat.dismissChatError} />
@@ -547,7 +550,7 @@ export default function StreamPage() {
         )}
 
         {tab === 'requests' && isManager && (
-          <div role="tabpanel" id="panel-requests" className="min-h-0 flex-1 overflow-y-auto">
+          <div role="tabpanel" id="panel-requests" className="min-h-0 flex-1 animate-fade-in overflow-y-auto">
             {isLive ? (
               <SpeakRequestQueue requests={media.pendingRequests} onApprove={media.approveRequest} onDeny={media.denyRequest} />
             ) : (
@@ -557,7 +560,7 @@ export default function StreamPage() {
         )}
 
         {tab === 'moderation' && isManager && (
-          <div role="tabpanel" id="panel-moderation" className="flex min-h-0 flex-1 flex-col">
+          <div role="tabpanel" id="panel-moderation" className="flex min-h-0 flex-1 animate-fade-in flex-col">
             <ModerationPanel
               users={modUsers}
               loading={modLoading}
@@ -619,11 +622,14 @@ function TabButton({
     >
       {children}
       {!!badge && badge > 0 && (
-        <span className="ml-1.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-accent px-1 text-[11px] font-semibold text-white">
+        <span
+          key={badge}
+          className="ml-1.5 inline-flex min-w-[18px] animate-badge-pop items-center justify-center rounded-full bg-accent px-1 text-[11px] font-semibold text-white"
+        >
           {badge}
         </span>
       )}
-      {active && <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-accent" />}
+      {active && <span className="absolute inset-x-3 bottom-0 h-0.5 animate-pop-in rounded-full bg-accent" />}
     </button>
   );
 }

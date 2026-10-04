@@ -315,9 +315,9 @@ export default function ChannelPage() {
         )}
 
         {(localScreenStream || remoteScreenShares.size > 0) && (
-          <div className="flex flex-wrap gap-3 border-b border-border bg-base px-4 py-3">
+          <div className="flex animate-slide-down flex-wrap gap-3 border-b border-border bg-base px-4 py-3">
             {localScreenStream && (
-              <div className="relative overflow-hidden rounded-lg border border-border bg-black">
+              <div className="relative animate-pop-in overflow-hidden rounded-lg border border-border bg-black">
                 <video
                   ref={(el) => {
                     if (el && el.srcObject !== localScreenStream) {
@@ -335,7 +335,7 @@ export default function ChannelPage() {
               </div>
             )}
             {Array.from(remoteScreenShares.values()).map((peer) => (
-              <div key={peer.peerId} className="relative overflow-hidden rounded-lg border border-border bg-black">
+              <div key={peer.peerId} className="relative animate-pop-in overflow-hidden rounded-lg border border-border bg-black">
                 <video
                   ref={(el) => {
                     if (el && el.srcObject !== peer.stream) {
@@ -377,6 +377,7 @@ export default function ChannelPage() {
         onDismissError={() => setVoiceError(null)}
         remotePeers={Array.from(remotePeers.values())}
         selfUsername={session?.user.username ?? ''}
+        selfStream={voiceState === 'connected' ? voiceClientRef.current?.micStream ?? null : null}
         muted={muted}
         onJoin={handleJoinVoice}
         onLeave={handleLeaveVoice}

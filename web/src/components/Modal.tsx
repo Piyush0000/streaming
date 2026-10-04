@@ -1,6 +1,7 @@
-import { ReactNode, useEffect, useId, useRef } from 'react';
+import { ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { cx } from '../lib/format';
+import { prefersReducedMotion } from '../lib/motion';
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -27,6 +28,31 @@ export default function Modal({
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const [closing, setClosing] = useState(false);
+  const closeTimer = useRef<number | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Plays the exit animation, then hands control back to the parent (which unmounts us).
+  const requestClose = useCallback(() => {
+    if (closeTimer.current !== null) return;
+    if (prefersReducedMotion()) {
+      onCloseRef.current();
+      return;
+    }
+    setClosing(true);
+    closeTimer.current = window.setTimeout(() => {
+      closeTimer.current = null;
+      onCloseRef.current();
+    }, 150);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+    },
+    []
+  );
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -44,7 +70,7 @@ export default function Modal({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape' && dismissible) {
-        onClose();
+        requestClose();
         return;
       }
       if (e.key !== 'Tab') return;
@@ -69,12 +95,15 @@ export default function Modal({
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [dismissible, onClose]);
+  }, [dismissible, requestClose]);
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-0 sm:items-center sm:px-4"
-      onClick={dismissible ? onClose : undefined}
+      className={cx(
+        'fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-0 sm:items-center sm:px-4',
+        closing ? 'animate-fade-out' : 'animate-fade-in'
+      )}
+      onClick={dismissible ? requestClose : undefined}
     >
       <div
         ref={dialogRef}
@@ -84,6 +113,7 @@ export default function Modal({
         tabIndex={-1}
         className={cx(
           'flex max-h-[92dvh] w-full flex-col rounded-t-xl border bg-panel shadow-2xl outline-none sm:rounded-xl',
+          closing ? 'animate-pop-out' : 'animate-pop-in',
           size === 'sm' && 'sm:max-w-sm',
           size === 'md' && 'sm:max-w-md',
           size === 'lg' && 'sm:max-w-xl',
@@ -99,7 +129,7 @@ export default function Modal({
           </h2>
           {dismissible && (
             <button
-              onClick={onClose}
+              onClick={requestClose}
               className="shrink-0 rounded p-1 text-text-secondary hover:bg-hover hover:text-text-primary"
               aria-label="Close"
             >

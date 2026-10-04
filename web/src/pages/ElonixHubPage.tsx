@@ -8,21 +8,22 @@ import { rememberPostLoginPath } from '../lib/redirect';
 import HubNav from '../components/hub/HubNav';
 import PostCard from '../components/hub/PostCard';
 import Composer from '../components/hub/Composer';
+import Skeleton from '../components/Skeleton';
 
-function Skeleton() {
+function PostSkeleton() {
   return (
-    <div className="animate-pulse overflow-hidden rounded-2xl border border-border bg-panel" aria-hidden>
+    <div className="overflow-hidden rounded-2xl border border-border bg-panel" role="status" aria-busy="true" aria-label="Loading posts">
       <div className="flex items-center gap-3 p-4">
-        <div className="h-9 w-9 rounded-full bg-hover" />
+        <Skeleton className="h-9 w-9 rounded-full" />
         <div className="space-y-2">
-          <div className="h-3 w-28 rounded bg-hover" />
-          <div className="h-2.5 w-16 rounded bg-hover" />
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="h-2.5 w-16" />
         </div>
       </div>
-      <div className="aspect-video bg-hover" />
+      <Skeleton className="aspect-video rounded-none" />
       <div className="space-y-2 p-4">
-        <div className="h-3 w-24 rounded bg-hover" />
-        <div className="h-3 w-3/4 rounded bg-hover" />
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-3 w-3/4" />
       </div>
     </div>
   );
@@ -99,7 +100,7 @@ export default function ElonixHubPage() {
   const empty = !loading && !failed && posts.length === 0;
 
   return (
-    <div className="min-h-[100dvh] bg-base text-text-primary">
+    <div className="min-h-[100dvh] animate-page-in bg-base text-text-primary">
       <HubNav />
       <main className="mx-auto max-w-xl space-y-5 px-4 py-6">
         <div className="flex items-center justify-between gap-3">
@@ -127,8 +128,8 @@ export default function ElonixHubPage() {
 
         {(loading || initializing) && (
           <>
-            <Skeleton />
-            {posts.length === 0 && <Skeleton />}
+            <PostSkeleton />
+            {posts.length === 0 && <PostSkeleton />}
           </>
         )}
 

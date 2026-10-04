@@ -1,7 +1,11 @@
-import { Mic, MicOff, Monitor, MonitorOff, PhoneOff, Radio, Volume2 } from 'lucide-react';
+import { MicOff, Monitor, MonitorOff, PhoneOff, Radio, Volume2 } from 'lucide-react';
 import type { RemotePeerAudio } from '../lib/media';
 import Avatar from './Avatar';
 import Spinner from './Spinner';
+import Dots from './Dots';
+import MicIcon from './MicIcon';
+import { useLeavingList } from '../hooks/useLeavingList';
+import { useSpeaking } from '../lib/speaking';
 import ErrorBanner from './ErrorBanner';
 import { cx } from '../lib/format';
 
@@ -13,6 +17,7 @@ export default function VoicePanel({
   onDismissError,
   remotePeers,
   selfUsername,
+  selfStream,
   muted,
   onJoin,
   onLeave,
@@ -28,6 +33,8 @@ export default function VoicePanel({
   onDismissError: () => void;
   remotePeers: RemotePeerAudio[];
   selfUsername: string;
+  /** Our own mic stream, used for the local speaking ring. */
+  selfStream?: MediaStream | null;
   muted: boolean;
   onJoin: () => void;
   onLeave: () => void;
@@ -44,6 +51,7 @@ export default function VoicePanel({
   // The server counts unique users, so a second tab of the same person is one seat.
   const inRoom = new Set(remotePeers.map((p) => p.username)).size + (connected ? 1 : 0);
   const full = !!maxParticipants && connected && inRoom >= maxParticipants;
+  const peerRows = useLeavingList(remotePeers, (p) => p.peerId, 180);
 
   return (
     <div className="flex w-full flex-col border-b border-border bg-panel md:w-72 md:shrink-0 md:border-b-0 md:border-l">
@@ -60,7 +68,7 @@ export default function VoicePanel({
           </span>
         )}
         {connected && (
-          <span className="ml-auto flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
+          <span className="ml-auto flex animate-pop-in items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
             <Radio size={11} /> Live
           </span>
         )}
@@ -77,7 +85,7 @@ export default function VoicePanel({
           >
             {connecting ? (
               <>
-                <Spinner size={15} className="text-white" /> Connecting…
+                <Spinner size={15} className="text-white" /> Connecting <Dots />
               </>
             ) : (
               <>
@@ -97,7 +105,7 @@ export default function VoicePanel({
                     : 'bg-hover text-text-primary hover:bg-border'
                 )}
               >
-                {muted ? <MicOff size={16} /> : <Mic size={16} />}
+                <MicIcon muted={muted} size={16} />
                 {muted ? 'Unmute' : 'Mute'}
               </button>
               <button
@@ -132,34 +140,54 @@ export default function VoicePanel({
           <p className="py-4 text-center text-xs text-text-muted">Nobody's in voice right now.</p>
         )}
 
-        {(connected || remotePeers.length > 0) && (
+        {(connected || peerRows.length > 0) && (
           <ul className="flex flex-col gap-2">
             {connected && (
-              <li className="flex items-center gap-2 rounded-lg bg-hover/60 px-2 py-1.5">
-                <Avatar name={selfUsername} size={28} ring />
-                <span className="truncate text-sm text-text-primary">{selfUsername}</span>
-                <span className="ml-auto text-xs text-text-muted">(you)</span>
-                {muted && <MicOff size={13} className="text-danger" />}
-              </li>
+              <SelfRow username={selfUsername} stream={selfStream ?? null} muted={muted} />
             )}
-            {remotePeers.map((peer) => (
-              <li key={peer.peerId} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-hover/60">
-                <Avatar name={peer.username} size={28} ring />
-                <span className="truncate text-sm text-text-primary">{peer.username}</span>
-                <audio
-                  ref={(el) => {
-                    if (el && el.srcObject !== peer.stream) {
-                      el.srcObject = peer.stream;
-                      el.autoplay = true;
-                    }
-                  }}
-                  hidden
-                />
-              </li>
+            {peerRows.map(({ item: peer, leaving }) => (
+              <PeerRow key={peer.peerId} peer={peer} leaving={leaving} />
             ))}
           </ul>
         )}
       </div>
     </div>
+  );
+}
+
+function SelfRow({ username, stream, muted }: { username: string; stream: MediaStream | null; muted: boolean }) {
+  const speaking = useSpeaking(muted ? null : stream);
+  return (
+    <li className="flex animate-pop-in items-center gap-2 rounded-lg bg-hover/60 px-2 py-1.5">
+      <Avatar name={username} size={28} speaking={speaking} online />
+      <span className="truncate text-sm text-text-primary">{username}</span>
+      <span className="ml-auto text-xs text-text-muted">(you)</span>
+      {muted && <MicOff size={13} className="animate-pop-in text-danger" />}
+    </li>
+  );
+}
+
+function PeerRow({ peer, leaving }: { peer: RemotePeerAudio; leaving: boolean }) {
+  const speaking = useSpeaking(leaving ? null : peer.stream);
+  return (
+    <li
+      aria-hidden={leaving || undefined}
+      className={cx(
+        'flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-hover/60',
+        leaving ? 'pointer-events-none animate-pop-out' : 'animate-pop-in'
+      )}
+    >
+      <Avatar name={peer.username} size={28} speaking={speaking} online />
+      <span className="truncate text-sm text-text-primary">{peer.username}</span>
+      <audio
+        ref={(el) => {
+          if (el && el.srcObject !== peer.stream) {
+            el.srcObject = peer.stream;
+            el.autoplay = true;
+          }
+        }}
+        hidden
+      />
+    </li>
   );
 }

@@ -15,7 +15,7 @@ export default function SpeakRequestQueue({
   if (requests.length === 0) {
     return (
       <div className="flex flex-col items-center px-4 py-10 text-center">
-        <Hand size={26} className="mb-2 text-text-muted" />
+        <Hand size={26} className="mb-2 origin-bottom animate-wiggle text-text-muted" />
         <p className="text-sm text-text-primary">No speak requests</p>
         <p className="mt-1 text-xs text-text-muted">Listeners who ask to speak will show up here.</p>
       </div>
@@ -25,8 +25,8 @@ export default function SpeakRequestQueue({
   return (
     <ul className="flex flex-col gap-2 px-4 py-3" aria-label="Speak requests">
       {requests.map((r) => (
-        <li key={r.peerId} className="flex items-center gap-2.5 rounded-lg border border-border bg-base px-3 py-2.5">
-          <Avatar name={r.username} size={32} />
+        <li key={r.peerId} className="flex animate-slide-down items-center gap-2.5 rounded-lg border border-border bg-base px-3 py-2.5">
+          <Avatar name={r.username} size={32} glow />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm text-text-primary">{r.username}</p>
             <p className="text-[11px] text-text-muted">wants to speak</p>

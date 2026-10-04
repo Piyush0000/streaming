@@ -3,7 +3,7 @@ import { Radio, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useLiveStreams } from '../context/LiveStreamsContext';
 import Avatar from '../components/Avatar';
 import ErrorBanner from '../components/ErrorBanner';
-import { FullPageSpinner } from '../components/Spinner';
+import { CardGridSkeleton } from '../components/Skeleton';
 import { relativeTime } from '../lib/format';
 
 /** /live - browse everything that's live right now, or start your own. */
@@ -45,11 +45,9 @@ export default function LivePage() {
         {error && <ErrorBanner message={error} />}
 
         {loading && streams.length === 0 ? (
-          <div className="h-48">
-            <FullPageSpinner label="Looking for live streams…" />
-          </div>
+          <CardGridSkeleton count={3} />
         ) : streams.length === 0 ? (
-          <div className="flex flex-col items-center rounded-2xl border border-dashed border-border px-6 py-14 text-center">
+          <div className="flex animate-rise-in flex-col items-center rounded-2xl border border-dashed border-border px-6 py-14 text-center">
             <Radio size={30} className="mb-3 text-text-muted" />
             <p className="text-sm font-medium text-text-primary">Nobody is live right now</p>
             <p className="mt-1 max-w-sm text-xs text-text-muted">
@@ -64,11 +62,11 @@ export default function LivePage() {
           </div>
         ) : (
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {streams.map((s) => (
-              <li key={s.id}>
+            {streams.map((s, i) => (
+              <li key={s.id} className="animate-rise-in" style={{ animationDelay: `${Math.min(i, 8) * 50}ms` }}>
                 <button
                   onClick={() => navigate(`/live/${s.id}`)}
-                  className="flex h-full w-full flex-col gap-3 rounded-2xl border border-border bg-panel p-4 text-left transition-colors hover:border-accent/40 hover:bg-hover"
+                  className="hover-lift flex h-full w-full flex-col gap-3 rounded-2xl border border-border bg-panel p-4 text-left transition-colors hover:border-accent/40 hover:bg-hover"
                 >
                   <div className="flex items-center gap-2">
                     <LiveBadge />
@@ -79,7 +77,7 @@ export default function LivePage() {
                     <p className="line-clamp-2 break-words text-xs text-text-secondary">{s.description}</p>
                   )}
                   <div className="mt-auto flex items-center gap-2">
-                    <Avatar name={s.hostUsername} size={24} />
+                    <Avatar name={s.hostUsername} size="sm" glow />
                     <span className="truncate text-xs text-text-secondary">{s.hostUsername}</span>
                   </div>
                 </button>
@@ -104,7 +102,10 @@ export function LiveBadge({ className }: { className?: string }) {
     <span
       className={`inline-flex items-center gap-1 rounded bg-danger px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white ${className ?? ''}`}
     >
-      <span className="h-1.5 w-1.5 animate-pulse-ring rounded-full bg-white" aria-hidden />
+      <span className="relative flex h-1.5 w-1.5" aria-hidden>
+        <span className="absolute inset-0 animate-live-ping rounded-full bg-white" />
+        <span className="relative h-1.5 w-1.5 animate-pulse-ring rounded-full bg-white" />
+      </span>
       Live
     </span>
   );

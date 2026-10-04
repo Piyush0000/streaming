@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
-import { Crown, Mic, MicOff, MonitorUp } from 'lucide-react';
+import { Crown, MonitorUp } from 'lucide-react';
+import MicIcon from './MicIcon';
 import Avatar from './Avatar';
 import type { Participant, ScreenTile } from '../hooks/useStreamMedia';
 import { useSpeaking } from '../lib/speaking';
@@ -91,20 +92,13 @@ function Tile({
   return (
     <div
       className={cx(
-        'relative flex flex-col items-center gap-2 rounded-2xl border bg-panel px-3 py-4 transition-colors',
+        'relative flex animate-pop-in flex-col items-center gap-2 rounded-2xl border bg-panel px-3 py-4 transition-colors duration-base',
         speaking ? 'border-success/70' : 'border-border',
         offline && 'opacity-60'
       )}
     >
       {actions && <div className="absolute right-1.5 top-1.5">{actions}</div>}
-      <div
-        className={cx(
-          'rounded-full transition-shadow',
-          speaking && 'ring-2 ring-success ring-offset-2 ring-offset-panel'
-        )}
-      >
-        <Avatar name={username} size={72} />
-      </div>
+      <Avatar name={username} size={72} speaking={speaking} glow={role === 'host' && !offline} />
       <div className="flex max-w-full flex-col items-center gap-1">
         <p className="max-w-full truncate text-sm font-medium text-text-primary">
           {username}
@@ -122,10 +116,14 @@ function Tile({
           )}
           {offline ? (
             <span className="text-[11px] text-text-muted">away</span>
-          ) : muted ? (
-            <MicOff size={13} className="text-danger" aria-label="Muted" />
           ) : (
-            <Mic size={13} className={speaking ? 'text-success' : 'text-text-muted'} aria-label={speaking ? 'Speaking' : 'Mic on'} />
+            <span
+              className={cx('inline-flex transition-colors duration-fast', muted ? 'text-danger' : speaking ? 'text-success' : 'text-text-muted')}
+              role="img"
+              aria-label={muted ? 'Muted' : speaking ? 'Speaking' : 'Mic on'}
+            >
+              <MicIcon muted={muted} size={13} />
+            </span>
           )}
         </div>
       </div>
@@ -135,7 +133,7 @@ function Tile({
 
 function ScreenShare({ tile }: { tile: ScreenTile }) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-border bg-black">
+    <div className="relative animate-pop-in overflow-hidden rounded-xl border border-border bg-black">
       <video
         ref={(el) => {
           if (el && el.srcObject !== tile.stream) el.srcObject = tile.stream;

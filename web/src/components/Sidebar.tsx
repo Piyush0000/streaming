@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Channel, CreateChannelRequest } from '@streaming/shared-types';
-import { Hash, Lock, LogOut, Plus, Radio, Volume2, X } from 'lucide-react';
+import { Compass, Hash, HelpCircle, Lock, LogOut, Plus, Radio, Volume2, X } from 'lucide-react';
 import { useLiveStreams } from '../context/LiveStreamsContext';
 import { createChannel } from '../lib/channels';
 import { useChannels } from '../context/ChannelsContext';
 import { useSession } from '../context/SessionContext';
 import Avatar from './Avatar';
 import CreateChannelModal from './CreateChannelModal';
-import Spinner from './Spinner';
+import { ChannelListSkeleton } from './Skeleton';
+import { useTour } from './tour/ProductTour';
 import ErrorBanner from './ErrorBanner';
 import { cx } from '../lib/format';
 
@@ -23,6 +24,7 @@ export default function Sidebar({
   const navigate = useNavigate();
   const { channelId, streamId } = useParams();
   const live = useLiveStreams();
+  const { startTour } = useTour();
 
   const { channels, loading, error, refresh } = useChannels();
   const [dismissedError, setDismissedError] = useState<string | null>(null);
@@ -44,7 +46,7 @@ export default function Sidebar({
       {/* mobile backdrop */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/60 md:hidden"
+          className="fixed inset-0 z-30 animate-fade-in bg-black/60 md:hidden"
           onClick={onCloseMobile}
           aria-hidden
         />
@@ -52,7 +54,7 @@ export default function Sidebar({
 
       <aside
         className={cx(
-          'fixed inset-y-0 left-0 z-40 flex w-[260px] shrink-0 flex-col border-r border-border bg-panel transition-transform duration-200 md:static md:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 flex w-[260px] shrink-0 flex-col border-r border-border bg-panel transition-transform duration-base ease-out-expo md:static md:translate-x-0',
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -70,7 +72,7 @@ export default function Sidebar({
         </div>
 
         <div className="flex-1 overflow-y-auto px-2 py-3">
-          <div className="mb-3">
+          <div className="mb-3" data-tour="live">
             <div className="flex items-center justify-between px-2 pb-1">
               <button
                 onClick={() => {
@@ -81,7 +83,11 @@ export default function Sidebar({
               >
                 <span className="h-2 w-2 rounded-full bg-danger" aria-hidden />
                 Live
-                {live.streams.length > 0 && <span className="text-text-secondary">({live.streams.length})</span>}
+                {live.streams.length > 0 && (
+                  <span key={live.streams.length} className="inline-block animate-badge-pop text-text-secondary">
+                    ({live.streams.length})
+                  </span>
+                )}
               </button>
               <button
                 onClick={() => {
@@ -106,8 +112,9 @@ export default function Sidebar({
                         navigate(`/live/${s.id}`);
                         onCloseMobile();
                       }}
+                      data-active={s.id === streamId}
                       className={cx(
-                        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
+                        'nav-item flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
                         s.id === streamId
                           ? 'bg-accent-soft text-text-primary'
                           : 'text-text-secondary hover:bg-hover hover:text-text-primary'
@@ -128,11 +135,7 @@ export default function Sidebar({
             )}
           </div>
 
-          {loading && (
-            <div className="flex items-center justify-center py-8">
-              <Spinner size={18} />
-            </div>
-          )}
+          {loading && <ChannelListSkeleton />}
 
           {!loading && error && error !== dismissedError && (
             <div className="mb-3 flex flex-col gap-1.5 px-1">
@@ -158,6 +161,7 @@ export default function Sidebar({
           {textChannels.length > 0 && (
             <ChannelGroup
               label="Text channels"
+              tourId="channels"
               channels={textChannels}
               activeId={channelId}
               onSelect={(id) => {
@@ -170,6 +174,7 @@ export default function Sidebar({
           {voiceChannels.length > 0 && (
             <ChannelGroup
               label="Voice channels"
+              tourId="voice-channels"
               channels={voiceChannels}
               activeId={channelId}
               onSelect={(id) => {
@@ -182,6 +187,17 @@ export default function Sidebar({
 
         <div className="px-2 pb-2">
           <button
+            data-tour="hub"
+            onClick={() => {
+              navigate('/elonixhub');
+              onCloseMobile();
+            }}
+            className="nav-item flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
+          >
+            <Compass size={16} />
+            Elonix Hub
+          </button>
+          <button
             onClick={() => setModalOpen(true)}
             className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
           >
@@ -191,14 +207,25 @@ export default function Sidebar({
         </div>
 
         {session && (
-          <div className="flex items-center gap-2 border-t border-border px-3 py-3">
-            <Avatar name={session.user.username} size={32} />
+          <div className="flex items-center gap-2 border-t border-border px-3 py-3" data-tour="profile">
+            <Avatar name={session.user.username} size={32} online />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-text-primary">
                 {session.user.username}
               </p>
               <p className="truncate text-xs text-text-muted">{session.user.email}</p>
             </div>
+            <button
+              onClick={() => {
+                onCloseMobile();
+                startTour();
+              }}
+              className="shrink-0 rounded-md p-2 text-text-secondary hover:bg-hover hover:text-text-primary"
+              aria-label="Take a tour"
+              title="Take a tour"
+            >
+              <HelpCircle size={16} />
+            </button>
             <button
               onClick={logout}
               className="shrink-0 rounded-md p-2 text-text-secondary hover:bg-hover hover:text-danger"
@@ -220,17 +247,19 @@ export default function Sidebar({
 
 function ChannelGroup({
   label,
+  tourId,
   channels,
   activeId,
   onSelect,
 }: {
   label: string;
+  tourId: string;
   channels: Channel[];
   activeId: string | undefined;
   onSelect: (id: string) => void;
 }) {
   return (
-    <div className="mb-3">
+    <div className="mb-3" data-tour={tourId}>
       <p className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-text-muted">
         {label}
       </p>
@@ -241,8 +270,9 @@ function ChannelGroup({
             <li key={c.id}>
               <button
                 onClick={() => onSelect(c.id)}
+                data-active={active}
                 className={cx(
-                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
+                  'nav-item flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
                   active
                     ? 'bg-accent-soft text-text-primary'
                     : 'text-text-secondary hover:bg-hover hover:text-text-primary'

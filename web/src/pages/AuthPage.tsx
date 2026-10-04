@@ -47,9 +47,9 @@ export default function AuthPage() {
   }, []);
 
   return (
-    <div className="flex min-h-[100dvh] w-full items-center justify-center bg-base px-4">
+    <div className="flex min-h-[100dvh] w-full animate-fade-in items-center justify-center bg-base px-4">
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center text-center">
+        <div className="mb-8 flex animate-rise-in flex-col items-center text-center">
           <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-accent-soft text-accent">
             <Waves size={24} />
           </div>
@@ -61,7 +61,7 @@ export default function AuthPage() {
           </p>
         </div>
 
-        <div className="rounded-xl border border-border bg-panel p-6 shadow-panel">
+        <div className="animate-rise-in rounded-xl border border-border bg-panel p-6 shadow-panel" style={{ animationDelay: '120ms' }}>
           <p className="mb-5 text-center text-sm text-text-secondary">Sign in to continue</p>
 
           <div className="flex flex-col gap-3">

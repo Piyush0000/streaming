@@ -4,7 +4,7 @@ import { File as FileIcon, MessageSquare, MoreHorizontal } from 'lucide-react';
 import Avatar from './Avatar';
 import { fullTimestamp, relativeTime } from '../lib/format';
 import { resolveAttachmentUrl } from '../lib/api';
-import { FullPageSpinner } from './Spinner';
+import { MessageListSkeleton } from './Skeleton';
 
 interface Group {
   userId: string;
@@ -49,6 +49,12 @@ export default function MessageList({
   const containerRef = useRef<HTMLDivElement>(null);
   const stuckToBottomRef = useRef(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  // Ids present when the history finished loading. Anything not in here arrived
+  // afterwards and gets the slide-in; the initial history never animates.
+  const historyIdsRef = useRef<Set<string> | null>(null);
+  if (loading) historyIdsRef.current = null;
+  else if (historyIdsRef.current === null) historyIdsRef.current = new Set(messages.map((m) => m.id));
+  const historyIds = historyIdsRef.current;
 
   function handleScroll() {
     const el = containerRef.current;
@@ -77,7 +83,7 @@ export default function MessageList({
   }
 
   if (loading) {
-    return <FullPageSpinner label="Loading messages…" />;
+    return <MessageListSkeleton />;
   }
 
   const groups = groupMessages(messages);
@@ -100,6 +106,7 @@ export default function MessageList({
               group={group}
               isSelf={group.userId === currentUserId}
               messageActions={messageActions}
+              historyIds={historyIds}
             />
           ))}
         </div>
@@ -108,7 +115,7 @@ export default function MessageList({
       {showJumpToLatest && (
         <button
           onClick={jumpToLatest}
-          className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-accent px-4 py-1.5 text-xs font-semibold text-white shadow-lg transition-colors hover:bg-accent-hover"
+          className="absolute bottom-3 left-1/2 -translate-x-1/2 animate-pop-in rounded-full bg-accent px-4 py-1.5 text-xs font-semibold text-white shadow-lg transition-colors hover:bg-accent-hover"
         >
           Jump to latest
         </button>
@@ -182,14 +189,17 @@ function MessageGroupRow({
   group,
   isSelf,
   messageActions,
+  historyIds,
 }: {
   group: Group;
   isSelf: boolean;
   messageActions?: (message: Message) => MessageAction[];
+  historyIds: Set<string> | null;
 }) {
   const first = group.messages[0];
+  const isNew = (m: Message) => !!historyIds && !historyIds.has(m.id);
   return (
-    <div className="flex items-start gap-3">
+    <div className={`flex items-start gap-3 ${isNew(first) ? 'animate-msg-in' : ''}`}>
       <Avatar name={group.username} size={36} className="mt-0.5" />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
@@ -204,7 +214,10 @@ function MessageGroupRow({
           {group.messages.map((m) => {
             const actions = messageActions?.(m) ?? [];
             return (
-              <div key={m.id} className="group/msg relative flex flex-col gap-1.5">
+              <div
+                key={m.id}
+                className={`group/msg relative flex flex-col gap-1.5 ${m !== first && isNew(m) ? 'animate-msg-in' : ''}`}
+              >
                 {actions.length > 0 && (
                   <div className="absolute right-0 top-0 opacity-100 md:opacity-0 md:group-hover/msg:opacity-100 md:focus-within:opacity-100">
                     <MessageMenu actions={actions} label={`Message options for ${m.username}`} />

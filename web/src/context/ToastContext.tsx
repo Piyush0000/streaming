@@ -8,6 +8,7 @@ interface ToastItem {
   id: number;
   kind: ToastKind;
   message: string;
+  leaving?: boolean;
 }
 
 interface ToastContextValue {
@@ -35,8 +36,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const nextId = useRef(1);
 
+  // Flag the toast as leaving so it can slide out, then drop it once the exit animation is done.
   const dismiss = useCallback((id: number) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+    setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 170);
   }, []);
 
   const showToast = useCallback(
@@ -67,6 +72,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               role={t.kind === 'error' ? 'alert' : 'status'}
               className={cx(
                 'pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-lg border bg-panel px-3.5 py-3 text-sm shadow-2xl',
+                t.leaving ? 'animate-slide-out-right' : 'animate-slide-in-right',
                 STYLES[t.kind]
               )}
             >

@@ -4,6 +4,9 @@ import { Menu } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { LiveStreamsProvider } from '../context/LiveStreamsContext';
 import { ChannelsProvider } from '../context/ChannelsContext';
+import { useSession } from '../context/SessionContext';
+import { TourProvider } from '../components/tour/ProductTour';
+import PageTransition from '../components/PageTransition';
 
 /**
  * Persistent shell shown for every authenticated route: sidebar (channel list +
@@ -11,10 +14,12 @@ import { ChannelsProvider } from '../context/ChannelsContext';
  */
 export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { session } = useSession();
 
   return (
     <ChannelsProvider>
       <LiveStreamsProvider>
+        <TourProvider userId={session?.user.id} setSidebarOpen={setMobileOpen}>
         <div className="flex h-[100dvh] w-full overflow-hidden bg-base text-text-primary">
           <Sidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
 
@@ -33,10 +38,13 @@ export default function AppLayout() {
             </div>
 
             <div className="min-h-0 flex-1">
-              <Outlet />
+              <PageTransition>
+                <Outlet />
+              </PageTransition>
             </div>
           </div>
         </div>
+        </TourProvider>
       </LiveStreamsProvider>
     </ChannelsProvider>
   );

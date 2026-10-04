@@ -1,9 +1,11 @@
 import type { PeerRole } from '@streaming/shared-types';
-import { Hand, Mic, MicOff, Monitor, MonitorOff, RotateCw, Timer } from 'lucide-react';
+import { Hand, Monitor, MonitorOff, RotateCw, Timer } from 'lucide-react';
 import { useCountdown } from '../hooks/useCountdown';
 import type { MicState, SpeakRequestState } from '../hooks/useStreamMedia';
 import ErrorBanner from './ErrorBanner';
 import Spinner from './Spinner';
+import MicIcon from './MicIcon';
+import Dots from './Dots';
 import { cx } from '../lib/format';
 
 const screenShareSupported =
@@ -43,11 +45,11 @@ export default function StageControls({
   const cooldownSecs = useCountdown(speakCooldownUntil);
   if (role === 'listener') {
     return (
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-panel px-4 py-3">
+      <div className="flex animate-slide-down flex-wrap items-center gap-3 rounded-xl border border-border bg-panel px-4 py-3">
         {speakRequest === 'pending' ? (
           <>
             <span role="status" className="flex items-center gap-2 text-sm text-text-secondary">
-              <Spinner size={14} /> Request pending - waiting for the host
+              <Hand size={14} className="origin-bottom animate-wiggle text-accent" /> Request pending - waiting for the host <Dots />
             </span>
             <button
               onClick={onCancelSpeakRequest}
@@ -67,9 +69,9 @@ export default function StageControls({
               onClick={onRequestSpeak}
               disabled={cooldownSecs > 0}
               aria-live="polite"
-              className="ml-auto flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-hover disabled:text-text-secondary disabled:hover:bg-hover"
+              className="btn-shine group/hand ml-auto flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-hover disabled:text-text-secondary disabled:hover:bg-hover"
             >
-              {cooldownSecs > 0 ? <Timer size={15} /> : <Hand size={15} />}
+              {cooldownSecs > 0 ? <Timer size={15} /> : <Hand size={15} className="origin-bottom group-hover/hand:animate-wiggle" />}
               {cooldownSecs > 0 ? `Ask again in ${cooldownSecs}s` : 'Request to speak'}
             </button>
           </>
@@ -102,7 +104,7 @@ export default function StageControls({
             muted ? 'bg-danger/15 text-danger hover:bg-danger/25' : 'bg-hover text-text-primary hover:bg-border'
           )}
         >
-          {micState === 'starting' ? <Spinner size={15} /> : muted ? <MicOff size={16} /> : <Mic size={16} />}
+          {micState === 'starting' ? <Spinner size={15} /> : <MicIcon muted={muted} size={16} />}
           {micState === 'starting' ? 'Starting mic…' : muted ? 'Unmute' : 'Mute'}
         </button>
 

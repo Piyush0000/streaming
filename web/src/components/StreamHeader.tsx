@@ -6,6 +6,7 @@ import Avatar from './Avatar';
 import Modal from './Modal';
 import Spinner from './Spinner';
 import ErrorBanner from './ErrorBanner';
+import Tick from './Tick';
 import { LiveBadge } from '../pages/LivePage';
 
 export default function StreamHeader({
@@ -85,7 +86,7 @@ export default function StreamHeader({
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-secondary">
         <span className="flex min-w-0 items-center gap-2">
-          <Avatar name={stream.hostUsername} size={22} />
+          <Avatar name={stream.hostUsername} size={22} glow={live} />
           <span className="truncate font-medium text-text-primary">{stream.hostUsername}</span>
           <span className="text-text-muted">host</span>
         </span>
@@ -109,7 +110,7 @@ export default function StreamHeader({
         )}
         {showCounts && live && (
           <span className="text-text-muted" aria-live="polite">
-            {speakingCount} speaking · {listeningCount} listening
+            <Tick value={speakingCount} /> speaking · <Tick value={listeningCount} /> listening
           </span>
         )}
         <Link to="/guidelines" className="ml-auto flex items-center gap-1 text-text-muted hover:text-accent">

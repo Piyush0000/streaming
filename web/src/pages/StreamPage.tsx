@@ -468,8 +468,11 @@ export default function StreamPage() {
                 hostUsername={s.hostUsername}
                 participants={media.participants}
                 audioByUserId={media.audioByUserId}
+                cameraByUserId={media.cameraByUserId}
+                localCamera={media.localCamera}
                 micStream={media.micStream}
                 selfMuted={media.muted}
+                cameraBlocked={media.cameraState === 'error'}
                 screens={media.screens}
                 renderActions={renderParticipantActions}
               />
@@ -482,6 +485,11 @@ export default function StreamPage() {
                   muted={media.muted}
                   onToggleMute={media.toggleMute}
                   onRetryMic={media.retryMic}
+                  cameraState={media.cameraState}
+                  cameraError={media.cameraError}
+                  onToggleCamera={media.toggleCamera}
+                  cameras={media.cameras}
+                  onSwitchCamera={media.switchCamera}
                   isSharingScreen={media.isSharingScreen}
                   onStartScreenShare={media.startScreenShare}
                   onStopScreenShare={media.stopScreenShare}

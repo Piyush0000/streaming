@@ -80,6 +80,11 @@ const POST_SELECT = `
 const NOT_HIDDEN = `p.deleted_at IS NULL
   AND (SELECT COUNT(*) FROM hub_reports r WHERE r.post_id = p.id) < ${REPORT_HIDE_THRESHOLD}`;
 
+// Viewer-specific: hides posts by authors the viewer blocked. Requires $1 = viewer id
+// (null for anonymous -> comparison is NULL -> nothing hidden).
+const NOT_BLOCKED = `NOT EXISTS (
+  SELECT 1 FROM user_blocks ub WHERE ub.blocker_id = $1::uuid AND ub.blocked_id = p.user_id)`;
+
 interface PostRow {
   id: string;
   user_id: string;
@@ -115,7 +120,7 @@ function toPost(row: PostRow, viewerId: string | null) {
 
 async function loadPost(id: string, viewerId: string | null): Promise<ReturnType<typeof toPost> | null> {
   const { rows } = await pool.query<PostRow>(
-    `SELECT ${POST_SELECT} FROM hub_posts p WHERE p.id = $2 AND ${NOT_HIDDEN}`,
+    `SELECT ${POST_SELECT} FROM hub_posts p WHERE p.id = $2 AND ${NOT_HIDDEN} AND ${NOT_BLOCKED}`,
     [viewerId, id]
   );
   return rows[0] ? toPost(rows[0], viewerId) : null;
@@ -168,7 +173,7 @@ hubRouter.get('/posts', optionalAuth, async (req: Request, res: Response) => {
     }
     const { rows } = await pool.query<PostRow>(
       `SELECT ${POST_SELECT} FROM hub_posts p
-       WHERE ${NOT_HIDDEN} ${cursorSql}
+       WHERE ${NOT_HIDDEN} AND ${NOT_BLOCKED} ${cursorSql}
        ORDER BY p.created_at DESC, p.id DESC
        LIMIT $2`,
       params
@@ -382,17 +387,20 @@ hubRouter.get('/posts/:id/comments', optionalAuth, async (req: Request, res: Res
   try {
     const exists = await pool.query(`SELECT 1 FROM hub_posts p WHERE p.id = $1 AND ${NOT_HIDDEN}`, [id]);
     if (!exists.rows[0]) return res.status(404).json({ error: 'post_not_found' });
-    const params: unknown[] = [id, COMMENTS_PAGE + 1];
+    // $3 = viewer id; blocked authors' comments are hidden for the blocker.
+    const params: unknown[] = [id, COMMENTS_PAGE + 1, viewerId];
     let cursorSql = '';
     if (cur) {
       params.push(cur.ts, cur.id);
-      cursorSql = 'AND (c.created_at, c.id) > ($3::timestamptz, $4::uuid)';
+      cursorSql = 'AND (c.created_at, c.id) > ($4::timestamptz, $5::uuid)';
     }
     const { rows } = await pool.query<CommentRow>(
       `SELECT c.id, c.user_id, c.username, c.body, c.created_at,
               to_char(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_ts
        FROM hub_comments c
-       WHERE c.post_id = $1 AND c.deleted_at IS NULL ${cursorSql}
+       WHERE c.post_id = $1 AND c.deleted_at IS NULL
+         AND NOT EXISTS (SELECT 1 FROM user_blocks ub WHERE ub.blocker_id = $3::uuid AND ub.blocked_id = c.user_id)
+         ${cursorSql}
        ORDER BY c.created_at ASC, c.id ASC
        LIMIT $2`,
       params

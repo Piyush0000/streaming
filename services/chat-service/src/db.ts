@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import { env } from './env';
+import { logger } from './logger';
 import type { Message, MessageAttachment } from '@streaming/shared-types';
 
 export const pool = new Pool({ connectionString: env.DATABASE_URL });
@@ -100,12 +101,40 @@ export async function purgeChannelMessages(channelId: string): Promise<number> {
   return rowCount ?? 0;
 }
 
-export async function getRecentMessages(channelId: string, limit = 50): Promise<Message[]> {
-  const { rows } = await pool.query(
-    `SELECT * FROM (
-       SELECT * FROM messages WHERE channel_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2
-     ) recent ORDER BY created_at ASC`,
-    [channelId, limit]
-  );
+/**
+ * Recent history. When `viewerId` is given, messages by users that viewer has
+ * blocked (api-service `user_blocks`) are left out; the author is never told.
+ * If the table does not exist yet (api-service migration 005 not applied) we log
+ * and fall back to unfiltered history - the web client filters as well.
+ */
+export async function getRecentMessages(channelId: string, limit = 50, viewerId?: string): Promise<Message[]> {
+  const sql = (filter: boolean) => `SELECT * FROM (
+       SELECT * FROM messages WHERE channel_id = $1 AND deleted_at IS NULL${
+         filter
+           ? ' AND NOT EXISTS (SELECT 1 FROM user_blocks ub WHERE ub.blocker_id = $3::uuid AND ub.blocked_id = messages.user_id)'
+           : ''
+       } ORDER BY created_at DESC LIMIT $2
+     ) recent ORDER BY created_at ASC`;
+  if (viewerId) {
+    try {
+      const { rows } = await pool.query(sql(true), [channelId, limit, viewerId]);
+      return rows.map(toMessage);
+    } catch (err) {
+      if ((err as { code?: string }).code !== '42P01') throw err;
+      logger.warn('user_blocks table missing; serving unfiltered history');
+    }
+  }
+  const { rows } = await pool.query(sql(false), [channelId, limit]);
   return rows.map(toMessage);
+}
+
+/** Ids of users who blocked `authorId` (skipped when fanning out a live message). Never throws. */
+export async function getBlockerIds(authorId: string): Promise<string[]> {
+  try {
+    const { rows } = await pool.query('SELECT blocker_id FROM user_blocks WHERE blocked_id = $1', [authorId]);
+    return rows.map((r) => r.blocker_id as string);
+  } catch (err) {
+    logger.warn({ err }, 'could not load blockers; delivering message unfiltered (clients also filter)');
+    return [];
+  }
 }

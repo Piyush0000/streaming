@@ -20,8 +20,8 @@ const mediaCodecs = [
     clockRate: 48000,
     channels: 2,
   },
-  // VP8 for screen-share video: widely supported, royalty-free, no licensing
-  // complexity (unlike H264). Phase 1 only needs one video codec.
+  // VP8 for camera and screen-share video: widely supported, royalty-free, no
+  // licensing complexity (unlike H264). One video codec is enough.
   {
     kind: 'video',
     mimeType: 'video/VP8',

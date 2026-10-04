@@ -75,8 +75,10 @@ services:
       STREAM_ROOM_MAX_PEERS: ${STREAM_ROOM_MAX_PEERS:-150}
       PRIVATE_CHANNEL_MAX_MEMBERS: ${PRIVATE_CHANNEL_MAX_MEMBERS:-200}
       HUB_UPLOADS_DIR: /app/services/api-service/hub-uploads
+      AVATAR_UPLOADS_DIR: /app/services/api-service/avatar-uploads
     volumes:
       - hub-uploads:/app/services/api-service/hub-uploads
+      - avatar-uploads:/app/services/api-service/avatar-uploads
 
   chat-service:
     image: ${REGISTRY_PREFIX}chat-service:${IMAGE_TAG:-latest}
@@ -164,3 +166,4 @@ volumes:
   postgres-data:
   chat-uploads:
   hub-uploads:
+  avatar-uploads:

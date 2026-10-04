@@ -28,7 +28,7 @@ import type {
 } from '@streaming/shared-types';
 import { env } from './env';
 import { logger } from './logger';
-import { insertMessage, getRecentMessages, getLiveMessageAuthor, softDeleteMessage, purgeChannelMessages } from './db';
+import { insertMessage, getRecentMessages, getBlockerIds, getLiveMessageAuthor, softDeleteMessage, purgeChannelMessages } from './db';
 import { checkChatRateLimit } from './rateLimit';
 import { redisPub, redisConsume, redisSub, CHAT_STREAM, CHAT_CONSUMER_GROUP } from './redis';
 import { lookupAccess } from './access';
@@ -229,7 +229,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
           return;
         }
         await socket.join(roomName(payload.channelId));
-        const messages = await getRecentMessages(payload.channelId, 50);
+        const messages = await getRecentMessages(payload.channelId, 50, user.sub);
         const history: ChatHistoryPayload = { channelId: payload.channelId, messages };
         socket.emit('chat:history', history);
       } catch (err) {
@@ -388,14 +388,18 @@ export function createSocketServer(httpServer: HttpServer): Server {
     redisConsume,
     CHAT_STREAM,
     CHAT_CONSUMER_GROUP,
-    (event) => {
+    async (event) => {
       if (event.envelope.type === CHAT_MESSAGE_DELETED_EVENT) {
         const { channelId, messageId } = event.envelope.data as ChatMessageDeletedPayload;
         io.to(roomName(channelId)).emit('chat:message-deleted', { channelId, messageId } satisfies ChatMessageDeletedPayload);
         return;
       }
       const { channelId, message } = event.envelope.data as ChatMessagePayload;
-      io.to(roomName(channelId)).emit('chat:message', { channelId, message } satisfies ChatMessagePayload);
+      // Per-recipient block filtering: skip the personal rooms of everyone who blocked the author.
+      // Never reveals itself to the author; getBlockerIds never throws (clients filter too).
+      const blockers = await getBlockerIds(message.userId);
+      const target = blockers.length > 0 ? io.to(roomName(channelId)).except(blockers.map(userRoom)) : io.to(roomName(channelId));
+      target.emit('chat:message', { channelId, message } satisfies ChatMessagePayload);
     },
     { signal: abortController.signal }
   ).catch((err) => {

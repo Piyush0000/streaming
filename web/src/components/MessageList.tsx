@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useBlocks } from '../hooks/useBlocks';
+import { useProfiles, type Profile } from '../hooks/useProfiles';
+import { useUserCard } from './UserCard';
 import type { Message, MessageAttachment } from '@streaming/shared-types';
 import { File as FileIcon, MessageSquare, MoreHorizontal } from 'lucide-react';
 import Avatar from './Avatar';
@@ -32,7 +35,7 @@ function groupMessages(messages: Message[]): Group[] {
 }
 
 export default function MessageList({
-  messages,
+  messages: allMessages,
   currentUserId,
   loading,
   onAtBottomChange,
@@ -46,6 +49,12 @@ export default function MessageList({
   /** Reports whether the view is scrolled to (near) the latest message — used to gate the new-message sound. */
   onAtBottomChange?: (atBottom: boolean) => void;
 }) {
+  // Blocked users' messages are filtered server-side (history + live fan-out); this is the
+  // client-side safety net (e.g. a block made moments ago, or the server filter degraded).
+  const { isBlocked } = useBlocks();
+  const messages = useMemo(() => allMessages.filter((m) => !isBlocked(m.userId)), [allMessages, isBlocked]);
+  const authorIds = useMemo(() => Array.from(new Set(messages.map((m) => m.userId))), [messages]);
+  const profiles = useProfiles(authorIds);
   const containerRef = useRef<HTMLDivElement>(null);
   const stuckToBottomRef = useRef(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
@@ -105,6 +114,7 @@ export default function MessageList({
               key={group.messages[0].id ?? i}
               group={group}
               isSelf={group.userId === currentUserId}
+              profile={profiles.get(group.userId)}
               messageActions={messageActions}
               historyIds={historyIds}
             />
@@ -188,24 +198,39 @@ function MessageMenu({ actions, label }: { actions: MessageAction[]; label: stri
 function MessageGroupRow({
   group,
   isSelf,
+  profile,
   messageActions,
   historyIds,
 }: {
   group: Group;
   isSelf: boolean;
+  profile?: Profile;
   messageActions?: (message: Message) => MessageAction[];
   historyIds: Set<string> | null;
 }) {
   const first = group.messages[0];
+  const { openUserCard } = useUserCard();
+  const shownName = profile?.displayName || group.username;
   const isNew = (m: Message) => !!historyIds && !historyIds.has(m.id);
   return (
     <div className={`flex items-start gap-3 ${isNew(first) ? 'animate-msg-in' : ''}`}>
-      <Avatar name={group.username} size={36} className="mt-0.5" />
+      <button
+        type="button"
+        onClick={() => openUserCard(group.userId, group.username)}
+        className="mt-0.5 shrink-0 self-start rounded-full"
+        aria-label={`View ${shownName}'s profile`}
+      >
+        <Avatar name={group.username} src={profile?.avatarUrl} size={36} />
+      </button>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          <span className={`text-sm font-semibold ${isSelf ? 'text-accent' : 'text-text-primary'}`}>
-            {group.username}
-          </span>
+          <button
+            type="button"
+            onClick={() => openUserCard(group.userId, group.username)}
+            className={`text-sm font-semibold hover:underline ${isSelf ? 'text-accent' : 'text-text-primary'}`}
+          >
+            {shownName}
+          </button>
           <span className="text-[11px] text-text-muted" title={fullTimestamp(first.createdAt)}>
             {relativeTime(first.createdAt)}
           </span>

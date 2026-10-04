@@ -12,6 +12,9 @@ import StreamPage from './pages/StreamPage';
 import GuidelinesPage from './pages/GuidelinesPage';
 import InvitePage from './pages/InvitePage';
 const ElonixHubPage = lazy(() => import('./pages/ElonixHubPage'));
+import SettingsPage from './pages/SettingsPage';
+import { BlocksProvider } from './hooks/useBlocks';
+import { UserCardProvider } from './components/UserCard';
 import { ToastProvider } from './context/ToastContext';
 import {
   clearPostLoginPath,
@@ -121,6 +124,7 @@ function AppRoutes() {
         <Route path="/live" element={<LivePage />} />
         <Route path="/live/:streamId" element={<StreamPage />} />
         <Route path="/guidelines" element={<GuidelinesPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route
         path="*"
@@ -138,7 +142,11 @@ export default function App() {
   return (
     <SessionProvider>
       <ToastProvider>
-      <AppRoutes />
+        <BlocksProvider>
+          <UserCardProvider>
+            <AppRoutes />
+          </UserCardProvider>
+        </BlocksProvider>
       </ToastProvider>
     </SessionProvider>
   );

@@ -1,10 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Socket } from 'socket.io-client';
 import type { Channel, Message, MessageAttachment } from '@streaming/shared-types';
 import { Hash, Lock, Users, Volume2 } from 'lucide-react';
 import { connectChat, joinChannel, leaveChannel, sendMessage } from '../lib/chat';
-import { VoiceClient, RemotePeerAudio, RemotePeerVideo, describeMediaJoinError } from '../lib/media';
+import {
+  VoiceClient,
+  RemotePeerAudio,
+  RemotePeerVideo,
+  describeMediaJoinError,
+  describeCameraError,
+  cameraSupported,
+  listCameras,
+} from '../lib/media';
 import { getChannel, isChannelGone } from '../lib/channels';
 import { useSession } from '../context/SessionContext';
 import { useChannels } from '../context/ChannelsContext';
@@ -17,6 +25,10 @@ import VoicePanel, { VoiceState } from '../components/VoicePanel';
 import ErrorBanner from '../components/ErrorBanner';
 import AccessDenied from '../components/AccessDenied';
 import ChannelSettingsModal from '../components/ChannelSettingsModal';
+import ParticipantGrid from '../components/ParticipantGrid';
+import CallControls, { DeviceState } from '../components/CallControls';
+import type { TileModel } from '../components/ParticipantTile';
+import { useProfiles } from '../hooks/useProfiles';
 
 const screenShareSupported =
   typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia;
@@ -50,6 +62,14 @@ export default function ChannelPage() {
   const [isSharingScreen, setIsSharingScreen] = useState(false);
   const [localScreenStream, setLocalScreenStream] = useState<MediaStream | null>(null);
   const [remoteScreenShares, setRemoteScreenShares] = useState<Map<string, RemotePeerVideo>>(new Map());
+
+  const [cameraState, setCameraState] = useState<DeviceState>('off');
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
+  const [remoteCameras, setRemoteCameras] = useState<Map<string, RemotePeerVideo>>(new Map());
+  const [cameras, setCameras] = useState<{ deviceId: string; label: string }[]>([]);
+  /** peerId -> userId, so tiles can show profile pictures. */
+  const [peerUserIds, setPeerUserIds] = useState<Map<string, string>>(new Map());
 
   // Tracked outside React state (read inside socket callbacks that close over
   // stale state otherwise) so the message-sound gate always sees the latest
@@ -142,6 +162,59 @@ export default function ChannelPage() {
     };
   }, [channelId]);
 
+  const profileIds = useMemo(
+    () => [session?.user.id, ...peerUserIds.values()].filter((id): id is string => !!id),
+    [session?.user.id, peerUserIds]
+  );
+  const profiles = useProfiles(profileIds);
+  const selfMicStream = voiceState === 'connected' ? voiceClientRef.current?.micStream ?? null : null;
+  const selfProfile = session ? profiles.get(session.user.id) : undefined;
+  const selfUsername = session?.user.username;
+
+  const tiles = useMemo<TileModel[]>(() => {
+    if (voiceState !== 'connected') return [];
+    const list: TileModel[] = [
+      {
+        id: 'self',
+        name: selfProfile?.displayName || selfUsername || 'You',
+        avatarUrl: selfProfile?.avatarUrl ?? null,
+        videoStream: localCameraStream,
+        audioStream: selfMicStream,
+        isSelf: true,
+        micMuted: muted,
+        cameraBlocked: cameraState === 'error',
+      },
+    ];
+    for (const peer of remotePeers.values()) {
+      const profile = profiles.get(peerUserIds.get(peer.peerId) ?? '');
+      list.push({
+        id: peer.peerId,
+        name: profile?.displayName || peer.username,
+        avatarUrl: profile?.avatarUrl ?? null,
+        videoStream: remoteCameras.get(peer.peerId)?.stream ?? null,
+        audioStream: peer.stream,
+      });
+    }
+    return list;
+  }, [voiceState, selfProfile, selfUsername, localCameraStream, selfMicStream, muted, cameraState, remotePeers, profiles, peerUserIds, remoteCameras]);
+
+  const screenTiles = useMemo<TileModel[]>(() => {
+    const list: TileModel[] = [];
+    if (localScreenStream) {
+      list.push({ id: 'screen:local', name: 'You', videoStream: localScreenStream, isScreen: true, isSelf: true });
+    }
+    for (const peer of remoteScreenShares.values()) {
+      list.push({ id: `screen:${peer.peerId}`, name: peer.username, videoStream: peer.stream, isScreen: true });
+    }
+    return list;
+  }, [localScreenStream, remoteScreenShares]);
+
+  const avatarByPeerId = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const [peerId, userId] of peerUserIds) map.set(peerId, profiles.get(userId)?.avatarUrl ?? null);
+    return map;
+  }, [peerUserIds, profiles]);
+
   function handleSend(content: string, attachment?: MessageAttachment | null) {
     if (!socketRef.current || !channelId) return;
     sendMessage(socketRef.current, channelId, content, attachment);
@@ -153,6 +226,11 @@ export default function ChannelPage() {
     setRemoteScreenShares(new Map());
     setLocalScreenStream(null);
     setIsSharingScreen(false);
+    setRemoteCameras(new Map());
+    setLocalCameraStream(null);
+    setCameraState('off');
+    setCameraError(null);
+    setPeerUserIds(new Map());
     setMuted(false);
   }
 
@@ -176,11 +254,35 @@ export default function ChannelPage() {
             return next;
           });
         },
-        onPeerJoined: () => {
+        onRemoteCamera: (peer) => {
+          setRemoteCameras((prev) => new Map(prev).set(peer.peerId, peer));
+        },
+        onRemoteCameraEnded: (peerId) => {
+          setRemoteCameras((prev) => {
+            if (!prev.has(peerId)) return prev;
+            const next = new Map(prev);
+            next.delete(peerId);
+            return next;
+          });
+        },
+        onLocalProducerClosed: (source) => {
+          if (source === 'camera') {
+            setCameraState('off');
+            setLocalCameraStream(null);
+          }
+        },
+        onPeerJoined: (peerId, _username, info) => {
+          if (info?.userId) setPeerUserIds((prev) => new Map(prev).set(peerId, info.userId));
           playJoinSound();
         },
         onPeerLeft: (peerId) => {
           setRemotePeers((prev) => {
+            const next = new Map(prev);
+            next.delete(peerId);
+            return next;
+          });
+          setPeerUserIds((prev) => {
+            if (!prev.has(peerId)) return prev;
             const next = new Map(prev);
             next.delete(peerId);
             return next;
@@ -203,7 +305,8 @@ export default function ChannelPage() {
         },
       });
       voiceClientRef.current = client;
-      await client.joinAndPublish(channelId);
+      const existing = await client.joinAndPublish(channelId);
+      setPeerUserIds(new Map(existing.map((p) => [p.peerId, p.userId])));
       setMuted(false);
       setVoiceState('connected');
     } catch (err) {
@@ -246,6 +349,48 @@ export default function ChannelPage() {
     await voiceClientRef.current?.stopScreenShare();
     setIsSharingScreen(false);
     setLocalScreenStream(null);
+  }
+
+  async function handleStartCamera(deviceId?: string) {
+    const client = voiceClientRef.current;
+    if (!client) return;
+    setCameraState('starting');
+    setCameraError(null);
+    try {
+      const stream = await client.startCamera(deviceId);
+      if (!client.isCameraLive) {
+        setCameraState('off');
+        return;
+      }
+      setLocalCameraStream(stream);
+      setCameraState('live');
+      setCameras(await listCameras());
+    } catch (err) {
+      setLocalCameraStream(null);
+      setCameraState('error');
+      setCameraError(describeCameraError(err));
+    }
+  }
+
+  async function handleStopCamera() {
+    setCameraState('off');
+    setCameraError(null);
+    setLocalCameraStream(null);
+    await voiceClientRef.current?.stopCamera();
+  }
+
+  function handleToggleCamera() {
+    if (voiceClientRef.current?.isCameraLive) void handleStopCamera();
+    else void handleStartCamera();
+  }
+
+  async function handleSwitchCamera(deviceId: string) {
+    try {
+      setLocalCameraStream(await voiceClientRef.current!.switchCamera(deviceId));
+      setCameraState('live');
+    } catch (err) {
+      setCameraError(describeCameraError(err));
+    }
   }
 
   function handleToggleMute() {
@@ -314,43 +459,26 @@ export default function ChannelPage() {
           </div>
         )}
 
-        {(localScreenStream || remoteScreenShares.size > 0) && (
-          <div className="flex animate-slide-down flex-wrap gap-3 border-b border-border bg-base px-4 py-3">
-            {localScreenStream && (
-              <div className="relative animate-pop-in overflow-hidden rounded-lg border border-border bg-black">
-                <video
-                  ref={(el) => {
-                    if (el && el.srcObject !== localScreenStream) {
-                      el.srcObject = localScreenStream;
-                    }
-                  }}
-                  autoPlay
-                  muted
-                  playsInline
-                  className="h-40 w-auto max-w-full"
-                />
-                <span className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[11px] text-white">
-                  You (sharing)
-                </span>
-              </div>
-            )}
-            {Array.from(remoteScreenShares.values()).map((peer) => (
-              <div key={peer.peerId} className="relative animate-pop-in overflow-hidden rounded-lg border border-border bg-black">
-                <video
-                  ref={(el) => {
-                    if (el && el.srcObject !== peer.stream) {
-                      el.srcObject = peer.stream;
-                    }
-                  }}
-                  autoPlay
-                  playsInline
-                  className="h-40 w-auto max-w-full"
-                />
-                <span className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[11px] text-white">
-                  {peer.username}
-                </span>
-              </div>
-            ))}
+        {voiceState === 'connected' && (
+          <div className="flex max-h-[62vh] shrink-0 animate-slide-down flex-col gap-3 overflow-y-auto border-b border-border bg-base px-3 py-3 sm:px-4">
+            <ParticipantGrid tiles={tiles} screens={screenTiles} />
+            <CallControls
+              micState="live"
+              muted={muted}
+              onToggleMute={handleToggleMute}
+              cameraState={cameraState}
+              cameraError={cameraError}
+              onToggleCamera={handleToggleCamera}
+              onDismissCameraError={() => setCameraError(null)}
+              cameraDisabledReason={cameraSupported ? undefined : 'Camera is not supported in this browser'}
+              cameras={cameras}
+              onSwitchCamera={handleSwitchCamera}
+              screenSupported={screenShareSupported}
+              isSharingScreen={isSharingScreen}
+              onStartScreenShare={handleStartScreenShare}
+              onStopScreenShare={handleStopScreenShare}
+              onLeave={handleLeaveVoice}
+            />
           </div>
         )}
 
@@ -377,15 +505,11 @@ export default function ChannelPage() {
         onDismissError={() => setVoiceError(null)}
         remotePeers={Array.from(remotePeers.values())}
         selfUsername={session?.user.username ?? ''}
-        selfStream={voiceState === 'connected' ? voiceClientRef.current?.micStream ?? null : null}
+        selfAvatarUrl={selfProfile?.avatarUrl ?? null}
+        avatarByPeerId={avatarByPeerId}
+        selfStream={selfMicStream}
         muted={muted}
         onJoin={handleJoinVoice}
-        onLeave={handleLeaveVoice}
-        onToggleMute={handleToggleMute}
-        screenShareSupported={screenShareSupported}
-        isSharingScreen={isSharingScreen}
-        onStartScreenShare={handleStartScreenShare}
-        onStopScreenShare={handleStopScreenShare}
         maxParticipants={channel?.effectiveMaxParticipants}
       />
 

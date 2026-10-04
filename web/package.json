@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "tsx --test src/lib/*.test.ts"
   },
   "dependencies": {
     "@streaming/shared-types": "^0.1.0",

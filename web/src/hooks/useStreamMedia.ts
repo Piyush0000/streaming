@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PeerRole, SpeakRequestInfo } from '@streaming/shared-types';
-import { VoiceClient, MediaRequestError, describeMediaJoinError, RemotePeerAudio, RemotePeerVideo } from '../lib/media';
+import {
+  VoiceClient,
+  MediaRequestError,
+  describeMediaJoinError,
+  describeCameraError,
+  listCameras,
+  RemotePeerAudio,
+  RemotePeerVideo,
+} from '../lib/media';
 import { playJoinSound, playLeaveSound, playSpeakRequestSound } from '../lib/sounds';
 
 export interface PeerState {
@@ -21,6 +29,7 @@ export interface Participant {
 
 export type JoinStatus = 'idle' | 'connecting' | 'connected' | 'error';
 export type MicState = 'off' | 'starting' | 'live' | 'error';
+export type CameraState = 'off' | 'starting' | 'live' | 'error';
 export type SpeakRequestState = 'none' | 'pending';
 
 export interface ScreenTile {
@@ -98,6 +107,11 @@ export function useStreamMedia({
   const [remoteAudio, setRemoteAudio] = useState<Map<string, RemotePeerAudio>>(new Map());
   const [remoteScreens, setRemoteScreens] = useState<Map<string, RemotePeerVideo>>(new Map());
   const [localScreen, setLocalScreen] = useState<MediaStream | null>(null);
+  const [remoteCameras, setRemoteCameras] = useState<Map<string, RemotePeerVideo>>(new Map());
+  const [localCamera, setLocalCamera] = useState<MediaStream | null>(null);
+  const [cameraState, setCameraState] = useState<CameraState>('off');
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameras, setCameras] = useState<{ deviceId: string; label: string }[]>([]);
 
   const [micState, setMicState] = useState<MicState>('off');
   const [micError, setMicError] = useState<string | null>(null);
@@ -150,6 +164,63 @@ export function useStreamMedia({
     await client?.stopMic();
   }, []);
 
+  // ---- camera ----------------------------------------------------------
+
+  const refreshCameras = useCallback(async () => {
+    setCameras(await listCameras());
+  }, []);
+
+  const startCamera = useCallback(
+    async (deviceId?: string) => {
+      const client = clientRef.current;
+      if (!client || !canSpeak(myRoleRef.current)) return;
+      setCameraState('starting');
+      setCameraError(null);
+      try {
+        const stream = await client.startCamera(deviceId);
+        // The role may have been revoked while the permission prompt was open.
+        if (!canSpeak(myRoleRef.current) || !client.isCameraLive) {
+          await client.stopCamera();
+          setCameraState('off');
+          setLocalCamera(null);
+          return;
+        }
+        setLocalCamera(stream);
+        setCameraState('live');
+        void refreshCameras();
+      } catch (err) {
+        setCameraState('error');
+        setLocalCamera(null);
+        setCameraError(describeCameraError(err));
+      }
+    },
+    [refreshCameras]
+  );
+
+  const stopCamera = useCallback(async () => {
+    setCameraState('off');
+    setCameraError(null);
+    setLocalCamera(null);
+    await clientRef.current?.stopCamera();
+  }, []);
+
+  const toggleCamera = useCallback(() => {
+    if (clientRef.current?.isCameraLive) void stopCamera();
+    else void startCamera();
+  }, [startCamera, stopCamera]);
+
+  const switchCamera = useCallback(async (deviceId: string) => {
+    const client = clientRef.current;
+    if (!client) return;
+    try {
+      setLocalCamera(await client.switchCamera(deviceId));
+      setCameraState('live');
+      setCameraError(null);
+    } catch (err) {
+      setCameraError(describeCameraError(err));
+    }
+  }, []);
+
   const toggleMute = useCallback(() => {
     const next = !mutedRef.current;
     mutedRef.current = next;
@@ -176,6 +247,14 @@ export function useStreamMedia({
           onRemoteScreenShare: (peer) => setRemoteScreens((prev) => new Map(prev).set(peer.peerId, peer)),
           onRemoteScreenShareEnded: (peerId) =>
             setRemoteScreens((prev) => {
+              if (!prev.has(peerId)) return prev;
+              const next = new Map(prev);
+              next.delete(peerId);
+              return next;
+            }),
+          onRemoteCamera: (peer) => setRemoteCameras((prev) => new Map(prev).set(peer.peerId, peer)),
+          onRemoteCameraEnded: (peerId) =>
+            setRemoteCameras((prev) => {
               if (!prev.has(peerId)) return prev;
               const next = new Map(prev);
               next.delete(peerId);
@@ -227,6 +306,7 @@ export function useStreamMedia({
                 }
                 setSpeakRequest('none');
                 void stopMic();
+                void stopCamera();
               }
             } else if (before && canSpeak(role) !== canSpeak(before.role)) {
               if (canSpeak(role)) playJoinSound();
@@ -263,7 +343,12 @@ export function useStreamMedia({
             setStatus('error');
             setJoinError('Lost the connection to the stream room.');
           },
-          onLocalProducerClosed: () => {
+          onLocalProducerClosed: (source) => {
+            if (source === 'camera') {
+              setCameraState('off');
+              setLocalCamera(null);
+              return;
+            }
             setMicState('off');
             setMicStream(null);
           },
@@ -318,6 +403,10 @@ export function useStreamMedia({
       setRemoteAudio(new Map());
       setRemoteScreens(new Map());
       setLocalScreen(null);
+      setRemoteCameras(new Map());
+      setLocalCamera(null);
+      setCameraState('off');
+      setCameraError(null);
       setPendingRequests([]);
       setSpeakRequest('none');
       setSpeakCooldownUntil(null);
@@ -326,7 +415,7 @@ export function useStreamMedia({
       setMuted(false);
       mutedRef.current = false;
     };
-  }, [enabled, token, streamId, attempt, startMic, stopMic]);
+  }, [enabled, token, streamId, attempt, startMic, stopMic, stopCamera]);
 
   const reconnect = useCallback(() => setAttempt((a) => a + 1), []);
 
@@ -457,6 +546,15 @@ export function useStreamMedia({
     return map;
   }, [remoteAudio, peers]);
 
+  const cameraByUserId = useMemo(() => {
+    const map = new Map<string, MediaStream>();
+    for (const [peerId, cam] of remoteCameras) {
+      const peer = peers.get(peerId);
+      if (peer) map.set(peer.userId, cam.stream);
+    }
+    return map;
+  }, [remoteCameras, peers]);
+
   const screens = useMemo<ScreenTile[]>(() => {
     const tiles: ScreenTile[] = [];
     if (localScreen) tiles.push({ key: 'local', username: 'You', stream: localScreen, isLocal: true });
@@ -476,6 +574,16 @@ export function useStreamMedia({
     participants,
     remoteAudio: remoteAudioList,
     audioByUserId,
+    cameraByUserId,
+    localCamera,
+    cameraState,
+    cameraError,
+    cameras,
+    refreshCameras,
+    startCamera,
+    stopCamera,
+    toggleCamera,
+    switchCamera,
     screens,
     isSharingScreen: !!localScreen,
     micState,

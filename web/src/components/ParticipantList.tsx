@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { Headphones } from 'lucide-react';
 import Avatar from './Avatar';
+import { useProfiles } from '../hooks/useProfiles';
 import type { Participant } from '../hooks/useStreamMedia';
 import { useLeavingList } from '../hooks/useLeavingList';
 
@@ -13,6 +14,7 @@ export default function ParticipantList({
   renderActions?: (p: Participant) => ReactNode;
 }) {
   const rows = useLeavingList(listeners, (p) => p.userId, 180);
+  const profiles = useProfiles(listeners.map((p) => p.userId));
   return (
     <section aria-label="Listeners">
       <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
@@ -32,7 +34,7 @@ export default function ParticipantList({
                 leaving ? 'pointer-events-none animate-pop-out' : 'animate-pop-in'
               }`}
             >
-              <Avatar name={p.username || 'Guest'} size={28} />
+              <Avatar name={p.username || 'Guest'} src={profiles.get(p.userId)?.avatarUrl ?? null} size={28} />
               <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
                 {p.username || 'Guest'}
                 {p.isSelf && <span className="ml-1 text-xs text-text-muted">(you)</span>}

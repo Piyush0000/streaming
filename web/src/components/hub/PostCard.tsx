@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Flag, Heart, MessageCircle, MoreHorizontal, Share2, Trash2 } from 'lucide-react';
 import { hubApi, HubPost } from '../../lib/hub';
-import { colorForName, cx, initials, relativeTime } from '../../lib/format';
+import { cx, relativeTime } from '../../lib/format';
+import Avatar from '../Avatar';
+import { useUserCard } from '../UserCard';
+import { useProfiles } from '../../hooks/useProfiles';
 import { copyText } from '../../lib/clipboard';
 import { useToast } from '../../context/ToastContext';
 import PostBadges from './PostBadges';
@@ -16,7 +19,11 @@ interface Props {
 
 export default function PostCard({ post: initial, token, requireAuth, onDeleted }: Props) {
   const { showToast } = useToast();
+  const { openUserCard } = useUserCard();
   const [post, setPost] = useState(initial);
+  const authorIds = useMemo(() => [initial.author.id], [initial.author.id]);
+  const authorProfile = useProfiles(authorIds).get(initial.author.id);
+  const authorName = authorProfile?.displayName || initial.author.username;
   const [pop, setPop] = useState(false);
   const [bump, setBump] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -110,15 +117,16 @@ export default function PostCard({ post: initial, token, requireAuth, onDeleted 
   return (
     <article id={`post-${post.id}`} className="overflow-hidden rounded-2xl border border-border bg-panel">
       <div className="flex items-center gap-3 px-4 py-3">
-        <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-          style={{ background: colorForName(post.author.username) }}
-          aria-hidden
+        <button
+          type="button"
+          onClick={() => token && openUserCard(post.author.id, post.author.username)}
+          className="shrink-0 rounded-full"
+          aria-label={`View ${authorName}'s profile`}
         >
-          {initials(post.author.username)}
-        </span>
+          <Avatar name={post.author.username} src={authorProfile?.avatarUrl} size={36} />
+        </button>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold">{post.author.username}</div>
+          <div className="truncate text-sm font-semibold">{authorName}</div>
           <div className="text-xs text-text-muted">{relativeTime(post.createdAt)}</div>
         </div>
         <div className="relative" ref={menuRef}>
@@ -210,7 +218,7 @@ export default function PostCard({ post: initial, token, requireAuth, onDeleted 
         <PostBadges post={post} />
         {post.caption && (
           <p className="whitespace-pre-wrap break-words text-sm">
-            <span className="font-semibold">{post.author.username}</span>{' '}
+            <span className="font-semibold">{authorName}</span>{' '}
             <span className="text-text-secondary">{post.caption}</span>
           </p>
         )}

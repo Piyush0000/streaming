@@ -1,9 +1,8 @@
-import { MicOff, Monitor, MonitorOff, PhoneOff, Radio, Volume2 } from 'lucide-react';
+import { MicOff, Radio, Volume2 } from 'lucide-react';
 import type { RemotePeerAudio } from '../lib/media';
 import Avatar from './Avatar';
 import Spinner from './Spinner';
 import Dots from './Dots';
-import MicIcon from './MicIcon';
 import { useLeavingList } from '../hooks/useLeavingList';
 import { useSpeaking } from '../lib/speaking';
 import ErrorBanner from './ErrorBanner';
@@ -11,21 +10,22 @@ import { cx } from '../lib/format';
 
 export type VoiceState = 'idle' | 'connecting' | 'connected' | 'error';
 
+/**
+ * Sidebar for a voice channel: join button + roster (and the hidden <audio>
+ * elements that play remote voices). The video grid and the mic / camera /
+ * screen-share / leave controls live above the chat (ParticipantGrid + CallControls).
+ */
 export default function VoicePanel({
   voiceState,
   voiceError,
   onDismissError,
   remotePeers,
   selfUsername,
+  selfAvatarUrl,
+  avatarByPeerId,
   selfStream,
   muted,
   onJoin,
-  onLeave,
-  onToggleMute,
-  screenShareSupported,
-  isSharingScreen,
-  onStartScreenShare,
-  onStopScreenShare,
   maxParticipants,
 }: {
   voiceState: VoiceState;
@@ -33,16 +33,13 @@ export default function VoicePanel({
   onDismissError: () => void;
   remotePeers: RemotePeerAudio[];
   selfUsername: string;
+  selfAvatarUrl?: string | null;
+  /** Profile picture URLs by peerId, when known. */
+  avatarByPeerId?: Map<string, string | null>;
   /** Our own mic stream, used for the local speaking ring. */
   selfStream?: MediaStream | null;
   muted: boolean;
   onJoin: () => void;
-  onLeave: () => void;
-  onToggleMute: () => void;
-  screenShareSupported: boolean;
-  isSharingScreen: boolean;
-  onStartScreenShare: () => void;
-  onStopScreenShare: () => void;
   /** The channel's effective room limit (effectiveMaxParticipants), when known. */
   maxParticipants?: number | null;
 }) {
@@ -77,7 +74,7 @@ export default function VoicePanel({
       <div className="flex flex-col gap-3 px-4 py-3">
         {voiceError && <ErrorBanner message={voiceError} onDismiss={onDismissError} />}
 
-        {!connected ? (
+        {!connected && (
           <button
             onClick={onJoin}
             disabled={connecting}
@@ -93,45 +90,6 @@ export default function VoicePanel({
               </>
             )}
           </button>
-        ) : (
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
-              <button
-                onClick={onToggleMute}
-                className={cx(
-                  'flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-colors',
-                  muted
-                    ? 'bg-danger/15 text-danger hover:bg-danger/25'
-                    : 'bg-hover text-text-primary hover:bg-border'
-                )}
-              >
-                <MicIcon muted={muted} size={16} />
-                {muted ? 'Unmute' : 'Mute'}
-              </button>
-              <button
-                onClick={onLeave}
-                className="flex items-center justify-center gap-2 rounded-lg bg-danger/15 px-3 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/25"
-                aria-label="Leave voice"
-                title="Leave voice"
-              >
-                <PhoneOff size={16} />
-              </button>
-            </div>
-            {screenShareSupported && (
-              <button
-                onClick={isSharingScreen ? onStopScreenShare : onStartScreenShare}
-                className={cx(
-                  'flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-colors',
-                  isSharingScreen
-                    ? 'bg-danger/15 text-danger hover:bg-danger/25'
-                    : 'bg-hover text-text-primary hover:bg-border'
-                )}
-              >
-                {isSharingScreen ? <MonitorOff size={16} /> : <Monitor size={16} />}
-                {isSharingScreen ? 'Stop sharing' : 'Share screen'}
-              </button>
-            )}
-          </div>
         )}
       </div>
 
@@ -143,10 +101,10 @@ export default function VoicePanel({
         {(connected || peerRows.length > 0) && (
           <ul className="flex flex-col gap-2">
             {connected && (
-              <SelfRow username={selfUsername} stream={selfStream ?? null} muted={muted} />
+              <SelfRow username={selfUsername} avatarUrl={selfAvatarUrl ?? null} stream={selfStream ?? null} muted={muted} />
             )}
             {peerRows.map(({ item: peer, leaving }) => (
-              <PeerRow key={peer.peerId} peer={peer} leaving={leaving} />
+              <PeerRow key={peer.peerId} peer={peer} leaving={leaving} avatarUrl={avatarByPeerId?.get(peer.peerId) ?? null} />
             ))}
           </ul>
         )}
@@ -155,11 +113,21 @@ export default function VoicePanel({
   );
 }
 
-function SelfRow({ username, stream, muted }: { username: string; stream: MediaStream | null; muted: boolean }) {
+function SelfRow({
+  username,
+  avatarUrl,
+  stream,
+  muted,
+}: {
+  username: string;
+  avatarUrl: string | null;
+  stream: MediaStream | null;
+  muted: boolean;
+}) {
   const speaking = useSpeaking(muted ? null : stream);
   return (
     <li className="flex animate-pop-in items-center gap-2 rounded-lg bg-hover/60 px-2 py-1.5">
-      <Avatar name={username} size={28} speaking={speaking} online />
+      <Avatar name={username} src={avatarUrl} size={28} speaking={speaking} online />
       <span className="truncate text-sm text-text-primary">{username}</span>
       <span className="ml-auto text-xs text-text-muted">(you)</span>
       {muted && <MicOff size={13} className="animate-pop-in text-danger" />}
@@ -167,7 +135,7 @@ function SelfRow({ username, stream, muted }: { username: string; stream: MediaS
   );
 }
 
-function PeerRow({ peer, leaving }: { peer: RemotePeerAudio; leaving: boolean }) {
+function PeerRow({ peer, leaving, avatarUrl }: { peer: RemotePeerAudio; leaving: boolean; avatarUrl: string | null }) {
   const speaking = useSpeaking(leaving ? null : peer.stream);
   return (
     <li
@@ -177,7 +145,7 @@ function PeerRow({ peer, leaving }: { peer: RemotePeerAudio; leaving: boolean })
         leaving ? 'pointer-events-none animate-pop-out' : 'animate-pop-in'
       )}
     >
-      <Avatar name={peer.username} size={28} speaking={speaking} online />
+      <Avatar name={peer.username} src={avatarUrl} size={28} speaking={speaking} online />
       <span className="truncate text-sm text-text-primary">{peer.username}</span>
       <audio
         ref={(el) => {

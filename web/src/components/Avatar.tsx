@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { colorForName, cx, initials } from '../lib/format';
 
 export type AvatarSize = 'sm' | 'md' | 'lg' | number;
@@ -25,7 +26,10 @@ export default function Avatar({
   glow = false,
   online,
   className,
+  src,
 }: {
+  /** Optional profile picture; falls back to the gradient initial if absent or it fails to load. */
+  src?: string | null;
   name: string;
   size?: AvatarSize;
   ring?: boolean;
@@ -35,6 +39,9 @@ export default function Avatar({
   className?: string;
 }) {
   const safeName = name || '?';
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  useEffect(() => setFailedSrc(null), [src]);
+  const showImage = !!src && failedSrc !== src;
   const px = typeof size === 'number' ? size : SIZE_PX[size] ?? 36;
   const dot = Math.max(8, Math.round(px * 0.28));
   let background: string;
@@ -73,7 +80,18 @@ export default function Avatar({
         className="relative flex h-full w-full items-center justify-center rounded-full font-semibold text-white"
         style={{ fontSize: Math.max(10, px * 0.38), background }}
       >
-        {initials(safeName)}
+        {showImage ? (
+          <img
+            src={src!}
+            alt=""
+            loading="lazy"
+            draggable={false}
+            onError={() => setFailedSrc(src!)}
+            className="h-full w-full rounded-full object-cover"
+          />
+        ) : (
+          initials(safeName)
+        )}
       </span>
       {online !== undefined && (
         <span

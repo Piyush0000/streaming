@@ -82,7 +82,7 @@ function fail(id: string, error: string): MediaResponse {
   return { id, ok: false, error };
 }
 
-/** The producer's `source` ('mic' | 'screen') is carried in its mediasoup appData. */
+/** The producer's `source` ('mic' | 'camera' | 'screen') is carried in its mediasoup appData. */
 function producerSource(producer: { appData: Record<string, unknown> }): ProducerSource {
   return (producer.appData.source as ProducerSource | undefined) ?? 'mic';
 }
@@ -354,9 +354,11 @@ function targetPeer(room: Room, payload: PeerTargetPayload): Peer {
   return target;
 }
 
-function closeMicProducers(room: Room, target: Peer) {
+/** Closes a peer's mic and camera producers (used when a speaker is demoted to listener). */
+function closeSpeakerProducers(room: Room, target: Peer) {
   for (const producer of Array.from(target.producers.values())) {
-    if (producerSource(producer) !== 'mic') continue;
+    const src = producerSource(producer);
+    if (src !== 'mic' && src !== 'camera') continue;
     const producerId = producer.id;
     // Closing fires 'producerclose' on every consumer -> they get 'producer-closed'.
     producer.close();
@@ -534,8 +536,14 @@ export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
             const transport = peer?.transports.get(transportId);
             if (!room || !peer || !transport) throw new Error('transport not found');
 
-            if (source !== 'mic' && source !== 'screen') {
+            if (source !== 'mic' && source !== 'camera' && source !== 'screen') {
               throw new Error(`invalid producer source: ${String(source)}`);
+            }
+            if (kind !== 'audio' && kind !== 'video') {
+              throw new Error(`invalid producer kind: ${String(kind)}`);
+            }
+            if ((source === 'mic') !== (kind === 'audio')) {
+              throw new Error('mic must be an audio producer; camera and screen must be video producers');
             }
 
             // Server-side role enforcement for stream rooms (plain voice
@@ -544,20 +552,20 @@ export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
               if (source === 'mic' && peer.role !== 'host' && peer.role !== 'speaker') {
                 throw new Error('Only the host and approved speakers can speak. Request to speak first.');
               }
+              if (source === 'camera' && peer.role !== 'host' && peer.role !== 'speaker') {
+                throw new Error('Only the host and approved speakers can turn on their camera.');
+              }
               if (source === 'screen' && peer.role !== 'host') {
                 throw new Error('Only the host can share their screen.');
               }
-              if ((source === 'mic') !== (kind === 'audio')) {
-                throw new Error('mic must be an audio producer and screen must be a video producer');
-              }
             }
 
-            // Phase 1: one screen-share producer per user at a time. If they
-            // already have one (e.g. re-sharing without the old one tearing
-            // down cleanly), replace it rather than stacking producers.
-            if (source === 'screen') {
-              for (const existing of peer.producers.values()) {
-                if (producerSource(existing) === 'screen') {
+            // One screen-share and one camera producer per peer at a time. If
+            // they already have one (e.g. re-starting without the old one
+            // tearing down cleanly), replace it rather than stacking producers.
+            if (source === 'screen' || source === 'camera') {
+              for (const existing of Array.from(peer.producers.values())) {
+                if (producerSource(existing) === source) {
                   // Closing triggers each consumer's own 'producerclose' event
                   // (same in-process flow as the explicit close-producer
                   // request below), which notifies other peers — no need to
@@ -765,7 +773,7 @@ export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
             target.role = 'listener';
             room.speakerUserIds.delete(target.userId);
             logger.info({ streamId: room.channelId, by: actor.userId, target: target.userId }, 'speaker demoted');
-            closeMicProducers(room, target);
+            closeSpeakerProducers(room, target);
             broadcastToRoom(room, null, {
               notification: 'role-changed',
               payload: { peerId: target.id, userId: target.userId, role: 'listener' } satisfies RoleChangedNotification,

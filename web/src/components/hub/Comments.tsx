@@ -1,7 +1,10 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Send, Trash2 } from 'lucide-react';
 import { hubApi, HubComment } from '../../lib/hub';
-import { colorForName, initials, relativeTime } from '../../lib/format';
+import { relativeTime } from '../../lib/format';
+import Avatar from '../Avatar';
+import { useUserCard } from '../UserCard';
+import { useProfiles } from '../../hooks/useProfiles';
 import { useToast } from '../../context/ToastContext';
 
 interface Props {
@@ -13,7 +16,10 @@ interface Props {
 
 export default function Comments({ postId, token, requireAuth, onCountChange }: Props) {
   const { showToast } = useToast();
+  const { openUserCard } = useUserCard();
   const [comments, setComments] = useState<HubComment[]>([]);
+  const authorIds = useMemo(() => comments.map((c) => c.author.id), [comments]);
+  const profiles = useProfiles(authorIds);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -75,15 +81,16 @@ export default function Comments({ postId, token, requireAuth, onCountChange }: 
       <ul className="space-y-3">
         {comments.map((c) => (
           <li key={c.id} className="flex gap-2.5">
-            <span
-              className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-              style={{ background: colorForName(c.author.username) }}
-              aria-hidden
+            <button
+              type="button"
+              onClick={() => token && openUserCard(c.author.id, c.author.username)}
+              className="mt-0.5 shrink-0 self-start rounded-full"
+              aria-label={`View ${c.author.username}'s profile`}
             >
-              {initials(c.author.username)}
-            </span>
+              <Avatar name={c.author.username} src={profiles.get(c.author.id)?.avatarUrl} size={28} />
+            </button>
             <div className="min-w-0 flex-1 text-sm">
-              <span className="font-semibold">{c.author.username}</span>{' '}
+              <span className="font-semibold">{profiles.get(c.author.id)?.displayName || c.author.username}</span>{' '}
               <span className="whitespace-pre-wrap break-words text-text-secondary">{c.body}</span>
               <div className="text-[11px] text-text-muted">{relativeTime(c.createdAt)}</div>
             </div>

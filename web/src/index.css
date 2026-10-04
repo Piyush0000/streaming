@@ -226,3 +226,33 @@
     opacity: 0;
   }
 }
+
+/* ---- Participant grid: active-speaker tile (amber-400 ring + gentle vibrate) ---- */
+@keyframes tile-speaking {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    box-shadow: 0 0 0 2px #fbbf24, 0 0 14px 2px rgba(251, 191, 36, 0.45);
+  }
+  20% { transform: translate3d(-1px, 0, 0) scale(1.012); }
+  40% {
+    transform: translate3d(1px, 0, 0) scale(1.018);
+    box-shadow: 0 0 0 3px #fbbf24, 0 0 26px 6px rgba(251, 191, 36, 0.6);
+  }
+  60% { transform: translate3d(-1px, 0, 0) scale(1.012); }
+  80% { transform: translate3d(1px, 0, 0) scale(1.006); }
+}
+.tile-speaking {
+  border-color: #fbbf24 !important;
+  box-shadow: 0 0 0 2px #fbbf24, 0 0 14px 2px rgba(251, 191, 36, 0.45);
+  animation: tile-speaking 1.2s ease-in-out infinite;
+  will-change: transform, box-shadow;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile-speaking {
+    animation: none !important;
+    transform: none !important;
+    box-shadow: none !important;
+    border-color: #fbbf24 !important;
+    border-width: 3px;
+  }
+}

@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Channel, CreateChannelRequest } from '@streaming/shared-types';
-import { Compass, Hash, HelpCircle, Lock, LogOut, Plus, Radio, Volume2, X } from 'lucide-react';
+import { Compass, Hash, HelpCircle, Lock, LogOut, Plus, Radio, Settings, Volume2, X } from 'lucide-react';
+import { useMemo } from 'react';
+import { useProfiles } from '../hooks/useProfiles';
 import { useLiveStreams } from '../context/LiveStreamsContext';
 import { createChannel } from '../lib/channels';
 import { useChannels } from '../context/ChannelsContext';
@@ -25,6 +27,8 @@ export default function Sidebar({
   const { channelId, streamId } = useParams();
   const live = useLiveStreams();
   const { startTour } = useTour();
+  const meIds = useMemo(() => (session ? [session.user.id] : []), [session?.user.id]);
+  const myProfile = useProfiles(meIds).get(session?.user.id ?? '');
 
   const { channels, loading, error, refresh } = useChannels();
   const [dismissedError, setDismissedError] = useState<string | null>(null);
@@ -208,10 +212,10 @@ export default function Sidebar({
 
         {session && (
           <div className="flex items-center gap-2 border-t border-border px-3 py-3" data-tour="profile">
-            <Avatar name={session.user.username} size={32} online />
+            <Avatar name={session.user.username} src={myProfile?.avatarUrl} size={32} online />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-text-primary">
-                {session.user.username}
+                {myProfile?.displayName || session.user.username}
               </p>
               <p className="truncate text-xs text-text-muted">{session.user.email}</p>
             </div>
@@ -225,6 +229,17 @@ export default function Sidebar({
               title="Take a tour"
             >
               <HelpCircle size={16} />
+            </button>
+            <button
+              onClick={() => {
+                onCloseMobile();
+                navigate('/settings');
+              }}
+              className="shrink-0 rounded-md p-2 text-text-secondary hover:bg-hover hover:text-text-primary"
+              aria-label="Settings"
+              title="Settings"
+            >
+              <Settings size={16} />
             </button>
             <button
               onClick={logout}

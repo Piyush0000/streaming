@@ -9,6 +9,7 @@ import {
   RemotePeerAudio,
   RemotePeerVideo,
 } from '../lib/media';
+import { useJoinToasts } from './useJoinToasts';
 import { playJoinSound, playLeaveSound, playSpeakRequestSound } from '../lib/sounds';
 
 export interface PeerState {
@@ -86,6 +87,9 @@ export function useStreamMedia({
 }) {
   const clientRef = useRef<VoiceClient | null>(null);
   const eventsRef = useRef(events);
+  const joinToasts = useJoinToasts((m, k) => eventsRef.current.notify(m, k), 'the stream');
+  const joinToastsRef = useRef(joinToasts);
+  joinToastsRef.current = joinToasts;
   eventsRef.current = events;
   const selfUsernameRef = useRef(selfUsername);
   selfUsernameRef.current = selfUsername;
@@ -265,10 +269,12 @@ export function useStreamMedia({
             setPeers((prev) => new Map(prev).set(peerId, { peerId, username, userId: info?.userId ?? peerId, role }));
             // Only the stage is worth a sound - listener churn would be noise.
             if (canSpeak(role)) playJoinSound();
+            joinToastsRef.current.peerJoined(username);
           },
           onPeerLeft: (peerId) => {
             const gone = peersRef.current.get(peerId);
             if (gone && canSpeak(gone.role)) playLeaveSound();
+            if (gone) joinToastsRef.current.peerLeft(gone.username);
             setPeers((prev) => {
               if (!prev.has(peerId)) return prev;
               const next = new Map(prev);

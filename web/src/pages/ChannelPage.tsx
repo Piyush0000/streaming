@@ -17,6 +17,7 @@ import { getChannel, isChannelGone } from '../lib/channels';
 import { useSession } from '../context/SessionContext';
 import { useChannels } from '../context/ChannelsContext';
 import { useToast } from '../context/ToastContext';
+import { useJoinToasts } from '../hooks/useJoinToasts';
 import { useChannelRemoved } from '../hooks/useChannelRemoved';
 import { playJoinSound, playLeaveSound, playMessageSound } from '../lib/sounds';
 import MessageList from '../components/MessageList';
@@ -39,6 +40,8 @@ export default function ChannelPage() {
   const navigate = useNavigate();
   const { refresh: refreshChannels } = useChannels();
   const { showToast } = useToast();
+  const peerNames = useRef<Map<string, string>>(new Map());
+  const joinToasts = useJoinToasts(showToast, 'the call');
   const { handleChannelRemoved, markSelfInitiated } = useChannelRemoved();
 
   const [channel, setChannel] = useState<Channel | null>(null);
@@ -279,11 +282,16 @@ export default function ChannelPage() {
             setLocalCameraStream(null);
           }
         },
-        onPeerJoined: (peerId, _username, info) => {
+        onPeerJoined: (peerId, username, info) => {
           if (info?.userId) setPeerUserIds((prev) => new Map(prev).set(peerId, info.userId));
+          peerNames.current.set(peerId, username);
+          joinToasts.peerJoined(username);
           playJoinSound();
         },
         onPeerLeft: (peerId) => {
+          const goneName = peerNames.current.get(peerId);
+          peerNames.current.delete(peerId);
+          if (goneName) joinToasts.peerLeft(goneName);
           setRemotePeers((prev) => {
             const next = new Map(prev);
             next.delete(peerId);

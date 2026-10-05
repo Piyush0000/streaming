@@ -12,6 +12,7 @@ import { usersRouter } from './routes/users';
 import { hubRouter } from './routes/hub';
 import { profilesRouter } from './routes/profiles';
 import { marketRouter } from './routes/market';
+import { paperRouter } from './routes/paper';
 import { internalRouter } from './routes/internal';
 
 export const app = express();
@@ -48,6 +49,8 @@ app.use('/users', usersRouter);
 app.use('/hub', hubRouter);
 // Public market data (Binance tickers + Elonix signals); per-IP rate limited inside the router.
 app.use('/market', marketRouter);
+// Paper trading (virtual funds, real prices); auth + rate limits inside the router.
+app.use('/paper', paperRouter);
 // Service-to-service only; guarded by x-internal-secret and NOT proxied by the gateway.
 app.use('/internal', internalRouter);
 

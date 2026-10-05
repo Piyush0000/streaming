@@ -4,12 +4,14 @@ import { env } from './env';
 import { logger } from './logger';
 import { pool } from './db';
 import { app } from './app';
+import { startPaperEngine } from './paperService';
 
 async function main() {
   await runMigrations(pool, path.join(__dirname, '..', 'migrations'), 'api-service');
 
   const server = app.listen(env.PORT, () => {
     logger.info(`api-service listening on :${env.PORT}`);
+    startPaperEngine();
   });
 
   const shutdown = async (signal: string) => {

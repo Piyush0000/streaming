@@ -10,6 +10,7 @@ export interface TileModel {
   id: string;
   name: string;
   avatarUrl?: string | null;
+  avatarPreset?: string | null;
   /** Camera (or screen) video. When absent/null the tile shows the avatar. */
   videoStream?: MediaStream | null;
   /** Mic audio, only used for the speaking indicator (playback happens elsewhere). */
@@ -72,7 +73,7 @@ export default function ParticipantTile({
         />
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-gradient-to-br from-panel to-base">
-          <Avatar name={tile.name} src={tile.avatarUrl ?? null} size={avatarSize} />
+          <Avatar name={tile.name} src={tile.avatarUrl ?? null} preset={tile.avatarPreset} size={avatarSize} />
           {tile.cameraBlocked && !compact && (
             <span className="mt-1 inline-flex items-center gap-1 rounded bg-danger/15 px-2 py-0.5 text-[11px] text-danger">
               <VideoOff size={11} /> Camera blocked

@@ -53,6 +53,7 @@ export default function StreamStage({
         id: `offline:${hostId}`,
         name: hostUsername,
         avatarUrl: profiles.get(hostId)?.avatarUrl ?? null,
+        avatarPreset: profiles.get(hostId)?.avatarPreset ?? null,
         badge: 'host',
         offline: true,
       });
@@ -63,6 +64,7 @@ export default function StreamStage({
         id: p.userId,
         name: profile?.displayName || p.username || (p.userId === hostId ? hostUsername : 'Guest'),
         avatarUrl: profile?.avatarUrl ?? null,
+        avatarPreset: profile?.avatarPreset ?? null,
         videoStream: p.isSelf ? localCamera : cameraByUserId.get(p.userId) ?? null,
         audioStream: p.isSelf ? micStream : audioByUserId.get(p.userId) ?? null,
         isSelf: p.isSelf,

@@ -66,7 +66,7 @@ function UserCardDialog({
       .then((p) => {
         if (cancelled) return;
         setProfile(p);
-        primeProfile({ id: p.id, username: p.username, displayName: p.displayName, avatarUrl: p.avatarUrl });
+        primeProfile({ id: p.id, username: p.username, displayName: p.displayName, avatarUrl: p.avatarUrl, avatarPreset: p.avatarPreset });
       })
       .catch((err) => {
         if (!cancelled) setLoadError(err instanceof Error ? err.message : 'Could not load this profile.');
@@ -124,7 +124,7 @@ function UserCardDialog({
         {loadError && <ErrorBanner message={loadError} />}
         {profile && (
           <>
-            <Avatar name={profile.username} src={profile.avatarUrl} size={88} />
+            <Avatar name={profile.username} src={profile.avatarUrl} preset={profile.avatarPreset} size={88} />
             <div className="min-w-0 max-w-full">
               <p className="truncate text-lg font-semibold text-text-primary">{name}</p>
               <p className="truncate text-sm text-text-muted">@{profile.username}</p>

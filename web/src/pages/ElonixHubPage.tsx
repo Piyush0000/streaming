@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ImageOff, Plus, RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
 import { useSession } from '../context/SessionContext';
 import { useToast } from '../context/ToastContext';
 import { hubApi, HubPost } from '../lib/hub';
@@ -9,6 +9,7 @@ import HubNav from '../components/hub/HubNav';
 import PostCard from '../components/hub/PostCard';
 import Composer from '../components/hub/Composer';
 import Skeleton from '../components/Skeleton';
+import EmptyState from '../components/EmptyState';
 
 function PostSkeleton() {
   return (
@@ -146,13 +147,12 @@ export default function ElonixHubPage() {
         )}
 
         {empty && !initializing && (
-          <div className="rounded-2xl border border-border bg-panel p-10 text-center">
-            <ImageOff className="mx-auto mb-3 text-text-muted" />
-            <p className="mb-1 font-semibold">No trades shared yet</p>
-            <p className="mb-4 text-sm text-text-secondary">Be the first to post a screenshot.</p>
-            <button onClick={() => requireAuth() && setComposer(true)} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white">
-              Share a trade
-            </button>
+          <div className="rounded-2xl border border-border bg-panel">
+            <EmptyState character="fox" title="No trades shared yet" body="Be the first to post a screenshot.">
+              <button onClick={() => requireAuth() && setComposer(true)} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white">
+                Share a trade
+              </button>
+            </EmptyState>
           </div>
         )}
 

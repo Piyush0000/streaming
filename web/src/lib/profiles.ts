@@ -7,6 +7,8 @@ export interface PublicProfile {
   username: string;
   displayName: string;
   avatarUrl: string | null;
+  /** Preset character id, or null/absent (older API). Unknown ids render as the initial avatar. */
+  avatarPreset?: string | null;
 }
 
 export interface UserProfileDetail extends PublicProfile {
@@ -73,6 +75,12 @@ export async function uploadAvatar(token: string, file: File): Promise<string | 
     throw new ApiError(res.status, code, message, json);
   }
   return typeof json.avatarUrl === 'string' ? json.avatarUrl : null;
+}
+
+/** Sets (or with null clears) the preset character avatar. Choosing one removes the uploaded photo. */
+export async function setAvatarPreset(token: string, preset: string | null): Promise<string | null> {
+  const body = await apiRequest<{ avatarPreset?: string | null }>(token, 'PATCH', '/users/me/avatar-preset', { preset });
+  return typeof body.avatarPreset === 'string' ? body.avatarPreset : null;
 }
 
 export async function deleteAvatar(token: string): Promise<void> {

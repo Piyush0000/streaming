@@ -178,6 +178,7 @@ export default function ChannelPage() {
         id: 'self',
         name: selfProfile?.displayName || selfUsername || 'You',
         avatarUrl: selfProfile?.avatarUrl ?? null,
+        avatarPreset: selfProfile?.avatarPreset ?? null,
         videoStream: localCameraStream,
         audioStream: selfMicStream,
         isSelf: true,
@@ -191,6 +192,7 @@ export default function ChannelPage() {
         id: peer.peerId,
         name: profile?.displayName || peer.username,
         avatarUrl: profile?.avatarUrl ?? null,
+        avatarPreset: profile?.avatarPreset ?? null,
         videoStream: remoteCameras.get(peer.peerId)?.stream ?? null,
         audioStream: peer.stream,
       });
@@ -208,6 +210,12 @@ export default function ChannelPage() {
     }
     return list;
   }, [localScreenStream, remoteScreenShares]);
+
+  const presetByPeerId = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const [peerId, userId] of peerUserIds) map.set(peerId, profiles.get(userId)?.avatarPreset ?? null);
+    return map;
+  }, [peerUserIds, profiles]);
 
   const avatarByPeerId = useMemo(() => {
     const map = new Map<string, string | null>();
@@ -507,6 +515,8 @@ export default function ChannelPage() {
         selfUsername={session?.user.username ?? ''}
         selfAvatarUrl={selfProfile?.avatarUrl ?? null}
         avatarByPeerId={avatarByPeerId}
+        selfAvatarPreset={selfProfile?.avatarPreset ?? null}
+        presetByPeerId={presetByPeerId}
         selfStream={selfMicStream}
         muted={muted}
         onJoin={handleJoinVoice}

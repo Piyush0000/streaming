@@ -1,17 +1,14 @@
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Mic,
-  MonitorUp,
-  MessageSquare,
-  Brain,
-  TrendingUp,
-  Radio,
-  ArrowRight,
-  Zap,
-} from 'lucide-react';
+import { Mic, MonitorUp, MessageSquare, Brain, Radio, ArrowRight, Zap } from 'lucide-react';
 import Avatar from '../components/Avatar';
 import HubTeaser from '../components/hub/HubTeaser';
 import Reveal from '../components/Reveal';
+import { Astronaut, Bear, Bull, Gem, Robot, Rocket, Whale, Wizard } from '../components/characters/Mascots';
+import { CoinGold, CoinSilver, CoinTeal, CoinViolet } from '../components/characters/Coins';
+import { CHARACTER_LIST, type PresetId } from '../components/characters/characters';
+import ChartBackdrop from '../components/characters/ChartBackdrop';
+import { CandleScene, ShieldScene, StreamScene, VoiceScene } from '../components/characters/Scenes';
 import { useInView } from '../hooks/useReveal';
 import { useCountUp } from '../hooks/useCountUp';
 
@@ -66,10 +63,84 @@ function Stat({ value, prefix, suffix, label }: (typeof STATS)[number]) {
 /** Staggered hero entrance: inline style keeps the delay out of the class list. */
 const stagger = (i: number) => ({ animationDelay: `${i * 90}ms` });
 
-const ONLINE_NAMES = ['Ava Chen', 'Marcus Lee', 'Priya Raman', 'Diego Soto', 'Nina Park', 'Omar Ali'];
+const ROW_CHARACTERS: PresetId[] = ['bull', 'robot', 'fox', 'whale', 'rocket', 'cat'];
+
+/** Floating hero characters (lg+): `depth` is the max pointer-parallax offset in px. */
+const HERO_CLUSTER: Array<{ node: ReactNode; className: string; depth: number; delay: string }> = [
+  { node: <Bull size={132} animated />, className: 'left-0 top-4 xl:-left-6', depth: 22, delay: '0s' },
+  { node: <Robot size={104} animated />, className: 'left-10 top-[58%] xl:left-2', depth: 34, delay: '-1.4s' },
+  { node: <CoinGold size={52} animated />, className: 'left-[19%] top-0', depth: 46, delay: '-0.6s' },
+  { node: <Rocket size={128} animated />, className: 'right-0 top-2 xl:-right-6', depth: 24, delay: '-2s' },
+  { node: <Astronaut size={100} animated />, className: 'right-8 top-[56%] xl:right-0', depth: 36, delay: '-0.9s' },
+  { node: <CoinViolet size={48} animated />, className: 'right-[18%] top-2', depth: 44, delay: '-2.6s' },
+  { node: <CoinTeal size={40} animated />, className: 'left-[24%] top-[88%]', depth: 40, delay: '-1.9s' },
+  { node: <CoinSilver size={44} animated />, className: 'right-[24%] top-[90%]', depth: 38, delay: '-0.3s' },
+];
+
+const SHOWCASE = [
+  {
+    scene: <CandleScene />,
+    title: 'Talk setups as the market moves',
+    body: 'Break down charts with other traders in text and voice while the candles print. Share your screen so everyone sees the same level you are looking at.',
+    accent: 'text-emerald-400',
+  },
+  {
+    scene: <VoiceScene />,
+    title: 'Voice channels and live rooms',
+    body: 'Drop into a voice room with up to 25 people, or tune in to a live room with up to 150 listeners where the host picks who gets to speak for Q&A.',
+    accent: 'text-accent',
+  },
+  {
+    scene: <StreamScene />,
+    title: 'Go live, screen and all',
+    body: 'Hosts can stream their screen and camera while listeners follow along and chat on the side. Ask to speak and the host can bring you up.',
+    accent: 'text-sky-400',
+  },
+  {
+    scene: <ShieldScene />,
+    title: 'Community rules that are enforced',
+    body: 'Hosts and moderators can warn and remove people. Two warnings and you are out, so rooms stay focused on the trading.',
+    accent: 'text-violet-400',
+  },
+];
+
+/** Pointer-driven parallax: writes --mx/--my in [-1, 1] on the element; CSS does the rest. */
+function useParallax<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof window === 'undefined') return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    let raf = 0;
+    const clamp = (n: number) => Math.max(-1, Math.min(1, n));
+    const onMove = (e: PointerEvent) => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const r = el.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        el.style.setProperty('--mx', String(clamp(((e.clientX - r.left) / r.width - 0.5) * 2)));
+        el.style.setProperty('--my', String(clamp(((e.clientY - r.top) / r.height - 0.5) * 2)));
+      });
+    };
+    const onLeave = () => {
+      el.style.setProperty('--mx', '0');
+      el.style.setProperty('--my', '0');
+    };
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerleave', onLeave);
+    return () => {
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerleave', onLeave);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+  return ref;
+}
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const heroRef = useParallax<HTMLDivElement>();
 
   return (
     <div className="relative min-h-[100dvh] w-full animate-fade-in overflow-hidden bg-base text-text-primary">
@@ -85,6 +156,9 @@ export default function LandingPage() {
           style={{ animationDelay: '-12s', animationDuration: '26s' }}
         />
       </div>
+
+      {/* Animated candlestick backdrop */}
+      <ChartBackdrop />
 
       <div className="relative z-10 flex min-h-[100dvh] flex-col">
         {/* Header */}
@@ -110,56 +184,68 @@ export default function LandingPage() {
 
         <main className="flex-1 px-5 sm:px-8">
           {/* Hero */}
-          <section className="mx-auto max-w-4xl pt-10 pb-16 text-center sm:pt-16 sm:pb-20">
-            <div className="mb-6 inline-flex animate-rise-in items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-4 py-2" style={stagger(0)}>
-              <Zap className="h-3.5 w-3.5 text-amber-400" />
-              <span className="text-xs font-semibold tracking-wide text-accent sm:text-sm">
-                LIVE VOICE &amp; TRADING COMMUNITY
-              </span>
-            </div>
-
-            <h1 className="mb-5 animate-rise-in text-4xl font-extrabold leading-tight sm:text-5xl md:text-6xl" style={stagger(1)}>
-              Where Traders
-              <br />
-              <span className="bg-gradient-to-r from-accent via-sky-400 to-violet-400 bg-clip-text text-transparent">
-                Talk Live
-              </span>
-            </h1>
-
-            <p className="mx-auto mb-10 max-w-2xl animate-rise-in text-base leading-relaxed text-text-secondary sm:text-lg" style={stagger(2)}>
-              Voice channels, live chat, and screen-shared charts — Elonix is the real-time
-              community layer for the <span className="font-semibold text-accent">AI-powered trading</span> crowd.
-              Drop into a room, share your screen, and talk setups as the market moves.
-            </p>
-
-            <div className="flex animate-rise-in flex-col items-center justify-center gap-3 sm:flex-row" style={stagger(3)}>
-              <button
-                onClick={() => navigate('/login')}
-                className="btn-shine group inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-7 py-3.5 text-sm font-bold text-white shadow-lg transition-all duration-300 hover:scale-105 hover:bg-accent-hover hover:shadow-accent/30 sm:text-base"
-              >
-                <span>Join Elonix</span>
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              </button>
-            </div>
-
-            {/* Who's online */}
-            <div className="mt-12 flex animate-rise-in flex-col items-center gap-3" style={stagger(4)}>
-              <div className="flex items-center -space-x-2">
-                {ONLINE_NAMES.map((name, i) => (
-                  <span key={name} className="inline-flex animate-float" style={{ animationDelay: `${i * -0.7}s` }}>
-                    <Avatar name={name} size="md" className="ring-2 ring-base" />
-                  </span>
-                ))}
-                <div className="z-10 flex h-9 w-9 items-center justify-center rounded-full bg-panel text-xs font-semibold text-text-secondary ring-2 ring-base">
-                  +2k
+          <div ref={heroRef} className="relative mx-auto max-w-6xl">
+            {/* Floating character cluster (large screens) */}
+            <div aria-hidden className="pointer-events-none absolute inset-0 hidden lg:block">
+              {HERO_CLUSTER.map((c, i) => (
+                <div key={i} className={`absolute ${c.className}`}>
+                  <div className="ch-drift" style={{ ['--depth' as string]: c.depth }}>
+                    <div className="animate-float" style={{ animationDelay: c.delay }}>
+                      {c.node}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <p className="flex items-center gap-2 text-xs text-text-muted sm:text-sm">
-                <Radio className="h-3.5 w-3.5 animate-pulse text-success" />
-                Building with traders worldwide, live right now
-              </p>
+              ))}
             </div>
-          </section>
+
+            <section className="relative mx-auto max-w-3xl pt-10 pb-16 text-center sm:pt-16 sm:pb-20">
+              <div className="mb-6 inline-flex animate-rise-in items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-4 py-2" style={stagger(0)}>
+                <Zap className="h-3.5 w-3.5 text-amber-400" />
+                <span className="text-xs font-semibold tracking-wide text-accent sm:text-sm">
+                  LIVE VOICE &amp; TRADING COMMUNITY
+                </span>
+              </div>
+
+              <h1 className="mb-5 animate-rise-in text-4xl font-extrabold leading-tight sm:text-5xl md:text-6xl" style={stagger(1)}>
+                Where Traders
+                <br />
+                <span className="bg-gradient-to-r from-accent via-sky-400 to-violet-400 bg-clip-text text-transparent">
+                  Talk Live
+                </span>
+              </h1>
+
+              <p className="mx-auto mb-10 max-w-2xl animate-rise-in text-base leading-relaxed text-text-secondary sm:text-lg" style={stagger(2)}>
+                Voice channels, live chat, and screen-shared charts — Elonix is the real-time
+                community layer for the <span className="font-semibold text-accent">AI-powered trading</span> crowd.
+                Drop into a room, share your screen, and talk setups as the market moves.
+              </p>
+
+              <div className="flex animate-rise-in flex-col items-center justify-center gap-3 sm:flex-row" style={stagger(3)}>
+                <button
+                  onClick={() => navigate('/login')}
+                  className="btn-shine group inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-7 py-3.5 text-sm font-bold text-white shadow-lg transition-all duration-300 hover:scale-105 hover:bg-accent-hover hover:shadow-accent/30 sm:text-base"
+                >
+                  <span>Join Elonix</span>
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </button>
+              </div>
+
+              {/* Character row */}
+              <div className="mt-12 flex animate-rise-in flex-col items-center gap-3" style={stagger(4)}>
+                <div className="flex items-center -space-x-2">
+                  {ROW_CHARACTERS.map((id, i) => (
+                    <span key={id} className="inline-flex animate-float" style={{ animationDelay: `${i * -0.7}s` }}>
+                      <Avatar name={id} preset={id} size={44} className="ring-2 ring-base" />
+                    </span>
+                  ))}
+                </div>
+                <p className="flex items-center gap-2 text-xs text-text-muted sm:text-sm">
+                  <Radio className="h-3.5 w-3.5 animate-pulse text-success" />
+                  Live voice rooms, screen sharing and chat for traders
+                </p>
+              </div>
+            </section>
+          </div>
 
           {/* Stats */}
           <section className="mx-auto max-w-3xl pb-16">
@@ -189,6 +275,46 @@ export default function LandingPage() {
             </div>
           </section>
 
+          {/* Illustrated feature showcase */}
+          <section className="mx-auto max-w-5xl space-y-14 pb-20 sm:space-y-20">
+            {SHOWCASE.map((f, i) => (
+              <Reveal key={f.title}>
+                <div className={`grid items-center gap-6 md:grid-cols-2 md:gap-10 ${i % 2 ? 'md:[&>*:first-child]:order-2' : ''}`}>
+                  <div className="overflow-hidden rounded-2xl border border-border shadow-lg">{f.scene}</div>
+                  <div>
+                    <h3 className={`mb-2 text-xl font-extrabold sm:text-2xl ${f.accent}`}>{f.title}</h3>
+                    <p className="text-sm leading-relaxed text-text-secondary sm:text-base">{f.body}</p>
+                  </div>
+                </div>
+              </Reveal>
+            ))}
+          </section>
+
+          {/* Meet the community */}
+          <section className="mx-auto max-w-5xl pb-20">
+            <Reveal className="mb-8 text-center">
+              <h2 className="text-2xl font-extrabold sm:text-3xl">Meet the community</h2>
+              <p className="mx-auto mt-2 max-w-xl text-sm text-text-secondary sm:text-base">
+                Pick a character as your profile avatar, or upload your own photo. Here are the ones waiting for you.
+              </p>
+            </Reveal>
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {CHARACTER_LIST.map((c, i) => (
+                <li key={c.id}>
+                  <Reveal delay={i * 50} className="h-full">
+                    <div className="group flex h-full flex-col items-center rounded-2xl border border-border bg-panel/60 p-4 text-center transition-all duration-300 hover:-translate-y-1 hover:border-accent/40">
+                      <div className="mb-3 transition-transform duration-300 group-hover:scale-110">
+                        <Avatar name={c.label} preset={c.id} size={80} />
+                      </div>
+                      <p className="text-sm font-bold text-text-primary">{c.label}</p>
+                      <p className="mt-1 text-xs text-text-muted">{c.tagline}</p>
+                    </div>
+                  </Reveal>
+                </li>
+              ))}
+            </ul>
+          </section>
+
           <Reveal>
             <HubTeaser />
           </Reveal>
@@ -199,7 +325,13 @@ export default function LandingPage() {
               <div className="absolute -top-10 -left-10 h-64 w-64 rounded-full bg-accent/10 blur-3xl" />
               <div className="absolute -bottom-10 -right-10 h-64 w-64 rounded-full bg-violet-400/10 blur-3xl" />
               <div className="relative z-10">
-                <TrendingUp className="mx-auto mb-4 h-8 w-8 text-emerald-400" />
+                <div aria-hidden className="mx-auto mb-4 flex items-end justify-center gap-1 sm:gap-3">
+                  <Wizard size={64} animated className="hidden sm:block" />
+                  <Bear size={72} animated />
+                  <Bull size={92} animated />
+                  <Whale size={72} animated />
+                  <Gem size={64} animated className="hidden sm:block" />
+                </div>
                 <h2 className="mb-3 text-2xl font-extrabold sm:text-3xl">Ready to talk markets live?</h2>
                 <p className="mx-auto mb-7 max-w-xl text-sm text-text-secondary sm:text-base">
                   Sign in with Google and jump straight into voice and text channels built for

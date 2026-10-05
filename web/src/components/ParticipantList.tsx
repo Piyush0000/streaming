@@ -34,7 +34,7 @@ export default function ParticipantList({
                 leaving ? 'pointer-events-none animate-pop-out' : 'animate-pop-in'
               }`}
             >
-              <Avatar name={p.username || 'Guest'} src={profiles.get(p.userId)?.avatarUrl ?? null} size={28} />
+              <Avatar name={p.username || 'Guest'} src={profiles.get(p.userId)?.avatarUrl ?? null} preset={profiles.get(p.userId)?.avatarPreset} size={28} />
               <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
                 {p.username || 'Guest'}
                 {p.isSelf && <span className="ml-1 text-xs text-text-muted">(you)</span>}

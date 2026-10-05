@@ -22,7 +22,9 @@ export default function VoicePanel({
   remotePeers,
   selfUsername,
   selfAvatarUrl,
+  selfAvatarPreset,
   avatarByPeerId,
+  presetByPeerId,
   selfStream,
   muted,
   onJoin,
@@ -34,8 +36,10 @@ export default function VoicePanel({
   remotePeers: RemotePeerAudio[];
   selfUsername: string;
   selfAvatarUrl?: string | null;
+  selfAvatarPreset?: string | null;
   /** Profile picture URLs by peerId, when known. */
   avatarByPeerId?: Map<string, string | null>;
+  presetByPeerId?: Map<string, string | null>;
   /** Our own mic stream, used for the local speaking ring. */
   selfStream?: MediaStream | null;
   muted: boolean;
@@ -101,10 +105,10 @@ export default function VoicePanel({
         {(connected || peerRows.length > 0) && (
           <ul className="flex flex-col gap-2">
             {connected && (
-              <SelfRow username={selfUsername} avatarUrl={selfAvatarUrl ?? null} stream={selfStream ?? null} muted={muted} />
+              <SelfRow username={selfUsername} avatarUrl={selfAvatarUrl ?? null} preset={selfAvatarPreset ?? null} stream={selfStream ?? null} muted={muted} />
             )}
             {peerRows.map(({ item: peer, leaving }) => (
-              <PeerRow key={peer.peerId} peer={peer} leaving={leaving} avatarUrl={avatarByPeerId?.get(peer.peerId) ?? null} />
+              <PeerRow key={peer.peerId} peer={peer} leaving={leaving} avatarUrl={avatarByPeerId?.get(peer.peerId) ?? null} preset={presetByPeerId?.get(peer.peerId) ?? null} />
             ))}
           </ul>
         )}
@@ -116,18 +120,20 @@ export default function VoicePanel({
 function SelfRow({
   username,
   avatarUrl,
+  preset,
   stream,
   muted,
 }: {
   username: string;
   avatarUrl: string | null;
+  preset: string | null;
   stream: MediaStream | null;
   muted: boolean;
 }) {
   const speaking = useSpeaking(muted ? null : stream);
   return (
     <li className="flex animate-pop-in items-center gap-2 rounded-lg bg-hover/60 px-2 py-1.5">
-      <Avatar name={username} src={avatarUrl} size={28} speaking={speaking} online />
+      <Avatar name={username} src={avatarUrl} preset={preset} size={28} speaking={speaking} online />
       <span className="truncate text-sm text-text-primary">{username}</span>
       <span className="ml-auto text-xs text-text-muted">(you)</span>
       {muted && <MicOff size={13} className="animate-pop-in text-danger" />}
@@ -135,7 +141,17 @@ function SelfRow({
   );
 }
 
-function PeerRow({ peer, leaving, avatarUrl }: { peer: RemotePeerAudio; leaving: boolean; avatarUrl: string | null }) {
+function PeerRow({
+  peer,
+  leaving,
+  avatarUrl,
+  preset,
+}: {
+  peer: RemotePeerAudio;
+  leaving: boolean;
+  avatarUrl: string | null;
+  preset: string | null;
+}) {
   const speaking = useSpeaking(leaving ? null : peer.stream);
   return (
     <li
@@ -145,7 +161,7 @@ function PeerRow({ peer, leaving, avatarUrl }: { peer: RemotePeerAudio; leaving:
         leaving ? 'pointer-events-none animate-pop-out' : 'animate-pop-in'
       )}
     >
-      <Avatar name={peer.username} src={avatarUrl} size={28} speaking={speaking} online />
+      <Avatar name={peer.username} src={avatarUrl} preset={preset} size={28} speaking={speaking} online />
       <span className="truncate text-sm text-text-primary">{peer.username}</span>
       <audio
         ref={(el) => {

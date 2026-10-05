@@ -87,7 +87,7 @@ export default function Comments({ postId, token, requireAuth, onCountChange }: 
               className="mt-0.5 shrink-0 self-start rounded-full"
               aria-label={`View ${c.author.username}'s profile`}
             >
-              <Avatar name={c.author.username} src={profiles.get(c.author.id)?.avatarUrl} size={28} />
+              <Avatar name={c.author.username} src={profiles.get(c.author.id)?.avatarUrl} preset={profiles.get(c.author.id)?.avatarPreset} size={28} />
             </button>
             <div className="min-w-0 flex-1 text-sm">
               <span className="font-semibold">{profiles.get(c.author.id)?.displayName || c.author.username}</span>{' '}

@@ -12,6 +12,8 @@ import { sendInvalidInput, uuidSchema } from '../validation';
 import { HUB_CONTENT_TYPES, detectImageExt } from '../hubImage';
 import {
   AVATAR_FILE_RE,
+  avatarPresetFor,
+  avatarPresetSchema,
   avatarUrlFor,
   effectiveDisplayName,
   parseIdList,
@@ -69,11 +71,12 @@ interface ProfileRow {
   display_name: string | null;
   bio: string | null;
   avatar_file: string | null;
+  avatar_preset: string | null;
   created_at: Date;
 }
 
 const PROFILE_SELECT = `
-  SELECT u.id, u.username, u.created_at, p.display_name, p.bio, p.avatar_file
+  SELECT u.id, u.username, u.created_at, p.display_name, p.bio, p.avatar_file, p.avatar_preset
   FROM users u LEFT JOIN user_profiles p ON p.user_id = u.id`;
 
 function toPublic(row: ProfileRow) {
@@ -83,6 +86,7 @@ function toPublic(row: ProfileRow) {
     displayName: effectiveDisplayName(row.display_name, row.username),
     bio: row.bio ?? '',
     avatarUrl: avatarUrlFor(row.avatar_file),
+    avatarPreset: avatarPresetFor(row.avatar_preset),
     joinedAt: row.created_at.toISOString(),
   };
 }
@@ -188,12 +192,12 @@ profilesRouter.post('/me/avatar', requireAuth, async (req: Request, res: Respons
       );
       await pool.query(
         `INSERT INTO user_profiles (user_id, avatar_file) VALUES ($1, $2)
-         ON CONFLICT (user_id) DO UPDATE SET avatar_file = $2, updated_at = now()`,
+         ON CONFLICT (user_id) DO UPDATE SET avatar_file = $2, avatar_preset = NULL, updated_at = now()`,
         [me, file]
       );
       unlinkAvatar(prev.rows[0]?.avatar_file);
       logger.info({ userId: me, file }, 'profiles: avatar updated');
-      res.json({ avatarUrl: avatarUrlFor(file) });
+      res.json({ avatarUrl: avatarUrlFor(file), avatarPreset: null });
     } catch (err) {
       unlinkAvatar(file);
       fail(res, err, 'save avatar', { userId: me });
@@ -211,11 +215,41 @@ profilesRouter.delete('/me/avatar', requireAuth, async (req: Request, res: Respo
       'SELECT avatar_file FROM user_profiles WHERE user_id = $1',
       [me]
     );
-    await pool.query('UPDATE user_profiles SET avatar_file = NULL, updated_at = now() WHERE user_id = $1', [me]);
+    await pool.query('UPDATE user_profiles SET avatar_file = NULL, avatar_preset = NULL, updated_at = now() WHERE user_id = $1', [me]);
     unlinkAvatar(prev.rows[0]?.avatar_file);
     res.json({ avatarUrl: null });
   } catch (err) {
     fail(res, err, 'delete avatar', { me });
+  }
+});
+
+// PATCH /users/me/avatar-preset { preset: <allowlisted id> | null } -> { avatarUrl: null, avatarPreset }
+// Choosing a preset removes the uploaded photo; null clears the preset.
+profilesRouter.patch('/me/avatar-preset', requireAuth, async (req: Request, res: Response) => {
+  const parsed = avatarPresetSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return sendInvalidInput(res, parsed.error);
+  const me = req.user!.sub;
+  const rl = await hitRateLimit(`rl:profile:avatar:${me}`, AVATAR_WRITES_PER_HOUR, 3600);
+  if (!rl.allowed) return rateLimited(res, rl.retryAfterMs);
+  try {
+    const preset = parsed.data.preset;
+    const prev = await pool.query<{ avatar_file: string | null }>(
+      'SELECT avatar_file FROM user_profiles WHERE user_id = $1',
+      [me]
+    );
+    await pool.query(
+      `INSERT INTO user_profiles (user_id, avatar_preset) VALUES ($1, $2)
+       ON CONFLICT (user_id) DO UPDATE SET
+         avatar_preset = $2,
+         avatar_file = CASE WHEN $2::text IS NULL THEN user_profiles.avatar_file ELSE NULL END,
+         updated_at = now()`,
+      [me, preset]
+    );
+    if (preset) unlinkAvatar(prev.rows[0]?.avatar_file);
+    const row = await loadProfile(me);
+    res.json({ avatarUrl: avatarUrlFor(row?.avatar_file), avatarPreset: avatarPresetFor(row?.avatar_preset) });
+  } catch (err) {
+    fail(res, err, 'set avatar preset', { me });
   }
 });
 
@@ -253,7 +287,13 @@ profilesRouter.get('/profiles', requireAuth, async (req: Request, res: Response)
     res.json({
       profiles: rows.map((r) => {
         const p = toPublic(r);
-        return { id: p.id, username: p.username, displayName: p.displayName, avatarUrl: p.avatarUrl };
+        return {
+          id: p.id,
+          username: p.username,
+          displayName: p.displayName,
+          avatarUrl: p.avatarUrl,
+          avatarPreset: p.avatarPreset,
+        };
       }),
     });
   } catch (err) {
@@ -269,7 +309,7 @@ profilesRouter.get('/me/blocks', requireAuth, async (req: Request, res: Response
   const me = req.user!.sub;
   try {
     const { rows } = await pool.query<ProfileRow & { blocked_at: Date }>(
-      `SELECT u.id, u.username, u.created_at, p.display_name, p.bio, p.avatar_file, b.created_at AS blocked_at
+      `SELECT u.id, u.username, u.created_at, p.display_name, p.bio, p.avatar_file, p.avatar_preset, b.created_at AS blocked_at
        FROM user_blocks b
        JOIN users u ON u.id = b.blocked_id
        LEFT JOIN user_profiles p ON p.user_id = u.id
@@ -285,6 +325,7 @@ profilesRouter.get('/me/blocks', requireAuth, async (req: Request, res: Response
           username: p.username,
           displayName: p.displayName,
           avatarUrl: p.avatarUrl,
+          avatarPreset: p.avatarPreset,
           blockedAt: r.blocked_at.toISOString(),
         };
       }),

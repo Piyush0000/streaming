@@ -47,6 +47,35 @@ export function parseIdList(raw: unknown): { ids: string[] } | { error: string }
   return { ids: unique };
 }
 
+/** Allowlist of preset avatar character ids. MUST mirror web/src/components/characters/characters.ts. */
+export const AVATAR_PRESETS = [
+  'bull',
+  'bear',
+  'robot',
+  'whale',
+  'astronaut',
+  'rocket',
+  'gem',
+  'fox',
+  'cat',
+  'wizard',
+] as const;
+export type AvatarPreset = (typeof AVATAR_PRESETS)[number];
+
+export function isAvatarPreset(v: unknown): v is AvatarPreset {
+  return typeof v === 'string' && (AVATAR_PRESETS as readonly string[]).includes(v);
+}
+
+/** Returns a valid preset id or null (unknown/legacy values are never exposed). */
+export function avatarPresetFor(v: string | null | undefined): AvatarPreset | null {
+  return isAvatarPreset(v) ? v : null;
+}
+
+/** Body of PUT /users/me/avatar-preset. `preset: null` clears it. */
+export const avatarPresetSchema = z
+  .object({ preset: z.union([z.enum(AVATAR_PRESETS), z.null()]) })
+  .strict();
+
 export function avatarUrlFor(file: string | null | undefined): string | null {
   return file && AVATAR_FILE_RE.test(file) ? `/api/users/avatar/${file}` : null;
 }

@@ -13,6 +13,7 @@ import GuidelinesPage from './pages/GuidelinesPage';
 import InvitePage from './pages/InvitePage';
 const ElonixHubPage = lazy(() => import('./pages/ElonixHubPage'));
 import SettingsPage from './pages/SettingsPage';
+import NotFoundPage from './pages/NotFoundPage';
 import { BlocksProvider } from './hooks/useBlocks';
 import { UserCardProvider } from './components/UserCard';
 import { ToastProvider } from './context/ToastContext';
@@ -126,14 +127,7 @@ function AppRoutes() {
         <Route path="/guidelines" element={<GuidelinesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
-      <Route
-        path="*"
-        element={
-          <RedirectIfAuthed>
-            <LandingPage />
-          </RedirectIfAuthed>
-        }
-      />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }

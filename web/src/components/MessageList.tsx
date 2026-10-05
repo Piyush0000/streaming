@@ -3,7 +3,8 @@ import { useBlocks } from '../hooks/useBlocks';
 import { useProfiles, type Profile } from '../hooks/useProfiles';
 import { useUserCard } from './UserCard';
 import type { Message, MessageAttachment } from '@streaming/shared-types';
-import { File as FileIcon, MessageSquare, MoreHorizontal } from 'lucide-react';
+import { File as FileIcon, MoreHorizontal } from 'lucide-react';
+import EmptyState from './EmptyState';
 import Avatar from './Avatar';
 import { fullTimestamp, relativeTime } from '../lib/format';
 import { resolveAttachmentUrl } from '../lib/api';
@@ -101,11 +102,12 @@ export default function MessageList({
     <div className="relative flex-1 min-h-0">
       <div ref={containerRef} onScroll={handleScroll} className="h-full overflow-y-auto px-4 py-4">
         {groups.length === 0 && (
-          <div className="flex h-full flex-col items-center justify-center text-center text-text-secondary">
-            <MessageSquare size={32} className="mb-3 text-text-muted" />
-            <p className="text-sm font-medium text-text-primary">No messages yet</p>
-            <p className="mt-1 text-xs text-text-muted">Be the first to say something.</p>
-          </div>
+          <EmptyState
+            character="cat"
+            title="No messages yet"
+            body="Be the first to say something."
+            className="h-full justify-center"
+          />
         )}
 
         <div className="flex flex-col gap-4">
@@ -220,7 +222,7 @@ function MessageGroupRow({
         className="mt-0.5 shrink-0 self-start rounded-full"
         aria-label={`View ${shownName}'s profile`}
       >
-        <Avatar name={group.username} src={profile?.avatarUrl} size={36} />
+        <Avatar name={group.username} src={profile?.avatarUrl} preset={profile?.avatarPreset} size={36} />
       </button>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">

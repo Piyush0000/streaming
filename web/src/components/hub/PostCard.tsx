@@ -123,7 +123,7 @@ export default function PostCard({ post: initial, token, requireAuth, onDeleted 
           className="shrink-0 rounded-full"
           aria-label={`View ${authorName}'s profile`}
         >
-          <Avatar name={post.author.username} src={authorProfile?.avatarUrl} size={36} />
+          <Avatar name={post.author.username} src={authorProfile?.avatarUrl} preset={authorProfile?.avatarPreset} size={36} />
         </button>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold">{authorName}</div>

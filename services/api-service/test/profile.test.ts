@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { avatarUrlFor, effectiveDisplayName, parseIdList, profilePatchSchema } from '../src/profile';
+import { AVATAR_PRESETS, avatarPresetFor, avatarPresetSchema, isAvatarPreset, avatarUrlFor, effectiveDisplayName, parseIdList, profilePatchSchema } from '../src/profile';
 
 const U1 = '11111111-1111-4111-8111-111111111111';
 const U2 = '22222222-2222-4222-8222-222222222222';
@@ -42,4 +42,23 @@ test('effectiveDisplayName falls back to username', () => {
   assert.equal(effectiveDisplayName('', 'bob'), 'bob');
   assert.equal(effectiveDisplayName(null, 'bob'), 'bob');
   assert.equal(effectiveDisplayName('Bob B', 'bob'), 'Bob B');
+});
+
+test('avatar preset: allowlist validation', () => {
+  assert.equal(isAvatarPreset('bull'), true);
+  assert.equal(isAvatarPreset('wizard'), true);
+  assert.equal(isAvatarPreset('Bull'), false);
+  assert.equal(isAvatarPreset('../etc/passwd'), false);
+  assert.equal(isAvatarPreset(''), false);
+  assert.equal(isAvatarPreset(null), false);
+  assert.equal(isAvatarPreset(5), false);
+  assert.equal(avatarPresetFor('fox'), 'fox');
+  assert.equal(avatarPresetFor('mickey'), null);
+  assert.equal(avatarPresetFor(undefined), null);
+  assert.deepEqual(avatarPresetSchema.parse({ preset: 'cat' }), { preset: 'cat' });
+  assert.deepEqual(avatarPresetSchema.parse({ preset: null }), { preset: null });
+  assert.equal(avatarPresetSchema.safeParse({ preset: 'nope' }).success, false);
+  assert.equal(avatarPresetSchema.safeParse({}).success, false);
+  assert.equal(avatarPresetSchema.safeParse({ preset: 'cat', x: 1 }).success, false);
+  assert.equal(new Set(AVATAR_PRESETS).size, AVATAR_PRESETS.length);
 });

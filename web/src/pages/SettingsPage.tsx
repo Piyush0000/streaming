@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { LogOut, Trash2, Upload } from 'lucide-react';
 import Avatar from '../components/Avatar';
+import { CHARACTER_LIST } from '../components/characters/characters';
 import ErrorBanner from '../components/ErrorBanner';
 import Spinner from '../components/Spinner';
 import { useSession } from '../context/SessionContext';
@@ -13,6 +14,7 @@ import {
   DISPLAY_NAME_MAX,
   deleteAvatar,
   fetchOwnProfile,
+  setAvatarPreset,
   updateOwnProfile,
   uploadAvatar,
   type OwnProfile,
@@ -43,7 +45,7 @@ export default function SettingsPage() {
     setProfile(p);
     setDisplayName(p.displayName === p.username ? '' : p.displayName);
     setBio(p.bio);
-    primeProfile({ id: p.id, username: p.username, displayName: p.displayName, avatarUrl: p.avatarUrl });
+    primeProfile({ id: p.id, username: p.username, displayName: p.displayName, avatarUrl: p.avatarUrl, avatarPreset: p.avatarPreset });
   }
 
   useEffect(() => {
@@ -95,7 +97,7 @@ export default function SettingsPage() {
     setAvatarBusy(true);
     try {
       const url = await uploadAvatar(token, file);
-      apply({ ...profile, avatarUrl: url });
+      apply({ ...profile, avatarUrl: url, avatarPreset: null });
       showToast('Avatar updated.', 'success');
     } catch (err) {
       setAvatarError(err instanceof Error ? err.message : 'Could not upload your avatar.');
@@ -111,10 +113,26 @@ export default function SettingsPage() {
     setAvatarError(null);
     try {
       await deleteAvatar(token);
-      apply({ ...profile, avatarUrl: null });
+      apply({ ...profile, avatarUrl: null, avatarPreset: null });
       showToast('Avatar removed.', 'success');
     } catch (err) {
       setAvatarError(err instanceof Error ? err.message : 'Could not remove your avatar.');
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  async function onPickPreset(id: string | null) {
+    if (!profile || avatarBusy) return;
+    setAvatarBusy(true);
+    setAvatarError(null);
+    try {
+      const preset = await setAvatarPreset(token, id);
+      // Choosing a preset removes the uploaded photo server-side; clearing keeps whatever photo exists.
+      apply({ ...profile, avatarPreset: preset, avatarUrl: preset ? null : profile.avatarUrl });
+      showToast(preset ? 'Character avatar set.' : 'Character avatar cleared.', 'success');
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : 'Could not update your avatar.');
     } finally {
       setAvatarBusy(false);
     }
@@ -154,7 +172,7 @@ export default function SettingsPage() {
           {profile && (
             <div className="flex flex-col gap-6">
               <div className="flex flex-wrap items-center gap-4">
-                <Avatar name={profile.username} src={preview ?? profile.avatarUrl} size={88} />
+                <Avatar name={profile.username} src={preview ?? profile.avatarUrl} preset={preview ? null : profile.avatarPreset} size={88} />
                 <div className="flex flex-col gap-2">
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -165,7 +183,7 @@ export default function SettingsPage() {
                     >
                       {avatarBusy ? <Spinner size={14} className="text-white" /> : <Upload size={14} />} Upload avatar
                     </button>
-                    {profile.avatarUrl && (
+                    {(profile.avatarUrl || profile.avatarPreset) && (
                       <button
                         type="button"
                         onClick={() => void onRemoveAvatar()}
@@ -184,6 +202,31 @@ export default function SettingsPage() {
                     className="hidden"
                     onChange={(e) => void onPickFile(e.target.files?.[0])}
                   />
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-medium text-text-secondary">Or pick a character</p>
+                <div role="group" aria-label="Character avatars" className="grid grid-cols-5 gap-2 sm:grid-cols-5">
+                  {CHARACTER_LIST.map((c) => {
+                    const selected = profile.avatarPreset === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        aria-pressed={selected}
+                        aria-label={c.label}
+                        title={selected ? `${c.label} (click to clear)` : c.label}
+                        disabled={avatarBusy}
+                        onClick={() => void onPickPreset(selected ? null : c.id)}
+                        className={`flex flex-col items-center gap-1 rounded-xl border p-1.5 transition-all hover:scale-105 disabled:opacity-50 ${
+                          selected ? 'border-accent bg-accent/10 ring-2 ring-accent/40' : 'border-border hover:border-accent/40'
+                        }`}
+                      >
+                        <Avatar name={c.label} preset={c.id} size={48} />
+                        <span className="w-full truncate text-center text-[10px] text-text-muted">{c.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               {avatarError && <ErrorBanner message={avatarError} onDismiss={() => setAvatarError(null)} />}
@@ -265,7 +308,7 @@ export default function SettingsPage() {
           <ul className="flex flex-col gap-2">
             {blocks.blocks.map((b) => (
               <li key={b.id} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
-                <Avatar name={b.username} src={b.avatarUrl} size={32} />
+                <Avatar name={b.username} src={b.avatarUrl} preset={b.avatarPreset} size={32} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-text-primary">{b.displayName}</p>
                   <p className="truncate text-xs text-text-muted">@{b.username}</p>

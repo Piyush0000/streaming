@@ -13,6 +13,8 @@ import CreateChannelModal from './CreateChannelModal';
 import { ChannelListSkeleton } from './Skeleton';
 import { useTour } from './tour/ProductTour';
 import ErrorBanner from './ErrorBanner';
+import MarketsSection from './MarketsSection';
+import RiskCalculatorModal from './RiskCalculatorModal';
 import { cx } from '../lib/format';
 
 export default function Sidebar({
@@ -33,6 +35,7 @@ export default function Sidebar({
   const { channels, loading, error, refresh } = useChannels();
   const [dismissedError, setDismissedError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [calcOpen, setCalcOpen] = useState(false);
 
   async function handleCreate(request: CreateChannelRequest) {
     if (!session) return;
@@ -139,6 +142,17 @@ export default function Sidebar({
             )}
           </div>
 
+          <MarketsSection
+            onNavigateHub={() => {
+              navigate('/elonixhub');
+              onCloseMobile();
+            }}
+            onOpenCalculator={() => {
+              setCalcOpen(true);
+              onCloseMobile();
+            }}
+          />
+
           {loading && <ChannelListSkeleton />}
 
           {!loading && error && error !== dismissedError && (
@@ -212,7 +226,7 @@ export default function Sidebar({
 
         {session && (
           <div className="flex items-center gap-2 border-t border-border px-3 py-3" data-tour="profile">
-            <Avatar name={session.user.username} src={myProfile?.avatarUrl} size={32} online />
+            <Avatar name={session.user.username} src={myProfile?.avatarUrl} preset={myProfile?.avatarPreset} size={32} online />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-text-primary">
                 {myProfile?.displayName || session.user.username}
@@ -252,6 +266,8 @@ export default function Sidebar({
           </div>
         )}
       </aside>
+
+      {calcOpen && <RiskCalculatorModal onClose={() => setCalcOpen(false)} />}
 
       {modalOpen && (
         <CreateChannelModal onClose={() => setModalOpen(false)} onCreate={handleCreate} />

@@ -256,3 +256,39 @@
     border-width: 3px;
   }
 }
+
+/* ---- Characters: idle animations (transform / opacity only) ---- */
+.ch-art { overflow: visible; }
+.ch-animated .ch-float { animation: ch-float 4.6s ease-in-out infinite; }
+.ch-animated .ch-blink { animation: ch-blink 5.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.ch-animated .ch-wag { animation: ch-wag 2.2s ease-in-out infinite; }
+.ch-animated .ch-flame { animation: ch-flame 0.5s ease-in-out infinite alternate; }
+.ch-animated .ch-twinkle { animation: ch-twinkle 2.8s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.ch-animated .ch-candle { animation: ch-candle 5s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+.ch-animated .ch-wave { animation: ch-wave 2.7s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.ch-animated .ch-eq { animation: ch-eq 1.3s ease-in-out infinite; }
+.ch-animated .ch-msg { animation: ch-msg 4s ease-in-out infinite; }
+@keyframes ch-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes ch-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
+@keyframes ch-wag { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(9deg); } }
+@keyframes ch-flame { from { transform: scaleY(0.82); } to { transform: scaleY(1.12); } }
+@keyframes ch-twinkle { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.8); } }
+@keyframes ch-candle { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.82); } }
+@keyframes ch-wave { 0% { opacity: 0.6; transform: scale(1); } 100% { opacity: 0; transform: scale(2.3); } }
+@keyframes ch-eq { 0%, 100% { transform: scaleY(0.45); } 50% { transform: scaleY(1); } }
+@keyframes ch-msg { 0%, 100% { opacity: 0.55; transform: translateX(0); } 50% { opacity: 1; transform: translateX(-3px); } }
+/* Landing hero drift: pointer sets --mx/--my in [-1,1]; only transform changes. */
+.ch-drift { transform: translate3d(calc(var(--mx, 0) * var(--depth, 10) * 1px), calc(var(--my, 0) * var(--depth, 10) * 1px), 0); transition: transform 350ms cubic-bezier(0.22, 1, 0.36, 1); will-change: transform; }
+@media (prefers-reduced-motion: reduce) {
+  .ch-animated .ch-float,
+  .ch-animated .ch-blink,
+  .ch-animated .ch-wag,
+  .ch-animated .ch-flame,
+  .ch-animated .ch-twinkle,
+  .ch-animated .ch-candle,
+  .ch-animated .ch-wave,
+  .ch-animated .ch-eq,
+  .ch-animated .ch-msg { animation: none !important; }
+  .ch-animated .ch-wave { opacity: 0.25; }
+  .ch-drift { transform: none !important; transition: none; }
+}

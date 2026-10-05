@@ -5,6 +5,7 @@ import Avatar from '../components/Avatar';
 import ErrorBanner from '../components/ErrorBanner';
 import { CardGridSkeleton } from '../components/Skeleton';
 import { relativeTime } from '../lib/format';
+import EmptyState from '../components/EmptyState';
 
 /** /live - browse everything that's live right now, or start your own. */
 export default function LivePage() {
@@ -47,18 +48,19 @@ export default function LivePage() {
         {loading && streams.length === 0 ? (
           <CardGridSkeleton count={3} />
         ) : streams.length === 0 ? (
-          <div className="flex animate-rise-in flex-col items-center rounded-2xl border border-dashed border-border px-6 py-14 text-center">
-            <Radio size={30} className="mb-3 text-text-muted" />
-            <p className="text-sm font-medium text-text-primary">Nobody is live right now</p>
-            <p className="mt-1 max-w-sm text-xs text-text-muted">
-              Be the first - hosts with Elonix bot premium or 500 followers can start a stream.
-            </p>
-            <button
-              onClick={openGoLive}
-              className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
+          <div className="rounded-2xl border border-dashed border-border">
+            <EmptyState
+              character="astronaut"
+              title="Nobody is live right now"
+              body="Be the first - hosts with Elonix bot premium or 500 followers can start a stream."
             >
-              Start a stream
-            </button>
+              <button
+                onClick={openGoLive}
+                className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
+              >
+                Start a stream
+              </button>
+            </EmptyState>
           </div>
         ) : (
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

@@ -96,8 +96,39 @@ wait_healthy() { # <timeout-seconds>
   done
 }
 
+# Docker runs one docker-proxy per published port (101 ports x tcp/udp x v4/v6),
+# and they release slowly after a container is removed. Recreating media-service
+# before they are gone fails with "address already in use" no matter how often
+# it is retried, so wait for the whole range to be free first.
+media_ports_in_use() {
+  ss -H -lntu 2>/dev/null | awk '{print $5}' | grep -cE ':(410[0-9]{2}|41100)$' || true
+}
+
+wait_media_ports_free() { # [timeout-seconds]
+  local deadline=$((SECONDS + ${1:-90})) n
+  while :; do
+    n="$(media_ports_in_use)"
+    [[ "${n:-0}" -eq 0 ]] && return 0
+    if (( SECONDS >= deadline )); then
+      log "media ports still in use after wait ($n listeners)"
+      return 1
+    fi
+    sleep 2
+  done
+}
+
 bring_up() { # <image-tag> [extra `up` flags...]
   local tag="$1" attempt; shift
+  # If the media-service image is changing, stop the old container first and let
+  # its ports drain, instead of racing the recreate against them.
+  local running_img target_img
+  running_img="$(docker inspect -f '{{.Image}}' infra-media-service-1 2>/dev/null || true)"
+  target_img="$(docker image inspect -f '{{.Id}}' "media-service:$tag" 2>/dev/null || true)"
+  if [[ -n "$running_img" && -n "$target_img" && "$running_img" != "$target_img" ]]; then
+    log "media-service image changed: stopping it so its ports drain before recreate"
+    IMAGE_TAG="$tag" "${COMPOSE[@]}" rm -sf media-service >/dev/null 2>&1 || true
+    wait_media_ports_free 90 || true
+  fi
   for attempt in 1 2 3; do
     if IMAGE_TAG="$tag" "${COMPOSE[@]}" up -d "$@" >/tmp/streaming-up.log 2>&1; then
       return 0
@@ -108,6 +139,7 @@ bring_up() { # <image-tag> [extra `up` flags...]
       # UDP/TCP port range after a recreate. Removing the container clears it.
       log "port-bind race (attempt $attempt/3): recreating media-service"
       IMAGE_TAG="$tag" "${COMPOSE[@]}" rm -sf media-service >/dev/null 2>&1 || true
+      wait_media_ports_free 90 || true
     fi
     sleep 4
   done

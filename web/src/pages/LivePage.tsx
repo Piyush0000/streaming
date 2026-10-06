@@ -1,11 +1,12 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { Radio, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useLiveStreams } from '../context/LiveStreamsContext';
-import Avatar from '../components/Avatar';
 import ErrorBanner from '../components/ErrorBanner';
 import { CardGridSkeleton } from '../components/Skeleton';
 import { relativeTime } from '../lib/format';
 import EmptyState from '../components/EmptyState';
+import AnimatedBackground from '../components/AnimatedBackground';
+import AvatarStack from '../components/AvatarStack';
 
 /** /live - browse everything that's live right now, or start your own. */
 export default function LivePage() {
@@ -13,15 +14,17 @@ export default function LivePage() {
   const navigate = useNavigate();
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="relative h-full overflow-hidden">
+      <AnimatedBackground variant="aurora" subtle />
+      <div className="relative z-10 h-full overflow-y-auto">
       <div className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-6 sm:px-6">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-danger/15 text-danger">
+            <span className="live-badge flex h-9 w-9 items-center justify-center rounded-xl text-white">
               <Radio size={18} />
             </span>
             <div>
-              <h1 className="text-lg font-semibold text-text-primary">Live now</h1>
+              <h1 className="text-gradient-anim text-lg font-bold">Live now</h1>
               <p className="text-xs text-text-muted">Listen in, ask to speak, and chat with the host.</p>
             </div>
           </div>
@@ -36,7 +39,7 @@ export default function LivePage() {
             </button>
             <button
               onClick={openGoLive}
-              className="flex items-center gap-2 rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              className="cta-border flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white" style={{ ['--cta-fill' as string]: '#be123c' }}
             >
               <Radio size={15} /> Go live
             </button>
@@ -65,10 +68,10 @@ export default function LivePage() {
         ) : (
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {streams.map((s, i) => (
-              <li key={s.id} className="animate-rise-in" style={{ animationDelay: `${Math.min(i, 8) * 50}ms` }}>
+              <li key={s.id} className="stagger" style={{ ['--i' as string]: Math.min(i, 8) }}>
                 <button
                   onClick={() => navigate(`/live/${s.id}`)}
-                  className="hover-lift flex h-full w-full flex-col gap-3 rounded-2xl border border-border bg-panel p-4 text-left transition-colors hover:border-accent/40 hover:bg-hover"
+                  className="hover-lift glass glass-glow flex h-full w-full flex-col gap-3 rounded-2xl p-4 text-left"
                 >
                   <div className="flex items-center gap-2">
                     <LiveBadge />
@@ -79,7 +82,7 @@ export default function LivePage() {
                     <p className="line-clamp-2 break-words text-xs text-text-secondary">{s.description}</p>
                   )}
                   <div className="mt-auto flex items-center gap-2">
-                    <Avatar name={s.hostUsername} size="sm" glow />
+                    <AvatarStack people={[{ key: s.hostId, name: s.hostUsername }]} size={26} label={`Hosted by ${s.hostUsername}`} />
                     <span className="truncate text-xs text-text-secondary">{s.hostUsername}</span>
                   </div>
                 </button>
@@ -95,6 +98,7 @@ export default function LivePage() {
           <ShieldCheck size={13} /> Community guidelines
         </Link>
       </div>
+      </div>
     </div>
   );
 }
@@ -102,7 +106,7 @@ export default function LivePage() {
 export function LiveBadge({ className }: { className?: string }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded bg-danger px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white ${className ?? ''}`}
+      className={`live-badge inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white ${className ?? ''}`}
     >
       <span className="relative flex h-1.5 w-1.5" aria-hidden>
         <span className="absolute inset-0 animate-live-ping rounded-full bg-white" />

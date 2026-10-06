@@ -215,7 +215,7 @@ function MessageGroupRow({
   const shownName = profile?.displayName || group.username;
   const isNew = (m: Message) => !!historyIds && !historyIds.has(m.id);
   return (
-    <div className={`flex items-start gap-3 ${isNew(first) ? 'animate-msg-in' : ''}`}>
+    <div className={`flex items-start gap-3 ${isNew(first) ? 'msg-spring' : ''}`}>
       <button
         type="button"
         onClick={() => openUserCard(group.userId, group.username)}
@@ -243,7 +243,7 @@ function MessageGroupRow({
             return (
               <div
                 key={m.id}
-                className={`group/msg relative flex flex-col gap-1.5 ${m !== first && isNew(m) ? 'animate-msg-in' : ''}`}
+                className={`group/msg relative flex flex-col gap-1.5 ${m !== first && isNew(m) ? 'msg-spring' : ''}`}
               >
                 {actions.length > 0 && (
                   <div className="absolute right-0 top-0 opacity-100 md:opacity-0 md:group-hover/msg:opacity-100 md:focus-within:opacity-100">

@@ -25,7 +25,7 @@ export default function SpeakRequestQueue({
   return (
     <ul className="flex flex-col gap-2 px-4 py-3" aria-label="Speak requests">
       {requests.map((r) => (
-        <li key={r.peerId} className="flex animate-slide-down items-center gap-2.5 rounded-lg border border-border bg-base px-3 py-2.5">
+        <li key={r.peerId} className="glass glass-glow flex animate-slide-down items-center gap-2.5 rounded-xl px-3 py-2.5">
           <Avatar name={r.username} size={32} glow />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm text-text-primary">{r.username}</p>

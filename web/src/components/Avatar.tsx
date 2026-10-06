@@ -16,7 +16,7 @@ function gradientForName(name: string): string {
 
 /**
  * Initial-based avatar. `speaking` shows a pulsing ring (voice activity),
- * `glow` a soft breathing halo (host/speaker), `online` a presence dot,
+ * `gradientRing` a rotating gradient ring, `glow` a soft breathing halo (host/speaker), `online` a presence dot,
  * `ring` the legacy static "present" ring. `size` is sm/md/lg or pixels.
  */
 export default function Avatar({
@@ -25,6 +25,7 @@ export default function Avatar({
   ring = false,
   speaking = false,
   glow = false,
+  gradientRing = false,
   online,
   className,
   src,
@@ -39,6 +40,8 @@ export default function Avatar({
   ring?: boolean;
   speaking?: boolean;
   glow?: boolean;
+  /** Slowly rotating multicolor ring (hosts / featured people). */
+  gradientRing?: boolean;
   online?: boolean;
   className?: string;
 }) {
@@ -59,7 +62,7 @@ export default function Avatar({
   return (
     <div
       className={cx(
-        'relative inline-flex shrink-0 rounded-full',
+        'avatar-pop relative inline-flex shrink-0 rounded-full',
         ring && 'ring-2 ring-success ring-offset-2 ring-offset-panel',
         className
       )}
@@ -72,17 +75,23 @@ export default function Avatar({
           className="pointer-events-none absolute -inset-1 animate-glow-breathe rounded-full bg-accent/40 blur-md"
         />
       )}
+      {gradientRing && !speaking && (
+        <span aria-hidden className="avatar-conic">
+          <span />
+        </span>
+      )}
       {speaking && (
         <>
-          <span
-            aria-hidden
-            className="speaking-ring pointer-events-none absolute inset-0 animate-speaking-ring rounded-full border-2 border-success"
-          />
-          <span aria-hidden className="pointer-events-none absolute -inset-0.5 rounded-full border-2 border-success" />
+          <span aria-hidden className="avatar-halo pointer-events-none" />
+          <span aria-hidden className="avatar-halo avatar-halo-2 pointer-events-none" />
+          <span aria-hidden className="pointer-events-none absolute -inset-0.5 rounded-full border-2 border-amber-400 shadow-[0_0_14px_rgba(251,191,36,0.6)]" />
         </>
       )}
       <span
-        className="relative flex h-full w-full items-center justify-center rounded-full font-semibold text-white"
+        className={cx(
+          'relative flex h-full w-full items-center justify-center rounded-full font-semibold text-white',
+          gradientRing && !speaking && 'ring-2 ring-panel'
+        )}
         style={{ fontSize: Math.max(10, px * 0.38), background: character ? character.gradient : background }}
       >
         {character ? (
@@ -103,14 +112,12 @@ export default function Avatar({
         )}
       </span>
       {online !== undefined && (
-        <span
-          aria-hidden
-          className={cx(
-            'absolute bottom-0 right-0 rounded-full ring-2 ring-panel',
-            online ? 'bg-success' : 'bg-text-muted'
-          )}
-          style={{ width: dot, height: dot }}
-        />
+        <span aria-hidden className="absolute bottom-0 right-0" style={{ width: dot, height: dot }}>
+          {online && <span className="status-pulse" />}
+          <span
+            className={cx('absolute inset-0 rounded-full ring-2 ring-panel', online ? 'bg-success' : 'bg-text-muted')}
+          />
+        </span>
       )}
     </div>
   );

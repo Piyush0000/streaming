@@ -1,8 +1,7 @@
 import type { PeerRole } from '@streaming/shared-types';
 import { Hand, RotateCw, Timer } from 'lucide-react';
 import { useCountdown } from '../hooks/useCountdown';
-import type { CameraState, MicState, SpeakRequestState } from '../hooks/useStreamMedia';
-import { cameraSupported } from '../lib/media';
+import type { MicState, SpeakRequestState } from '../hooks/useStreamMedia';
 import ErrorBanner from './ErrorBanner';
 import CallControls from './CallControls';
 import Dots from './Dots';
@@ -10,7 +9,7 @@ import Dots from './Dots';
 const screenShareSupported =
   typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia;
 
-/** Role-aware controls under the stage: mic/camera/screen for the host, mic/camera for speakers, request-to-speak for listeners. */
+/** Role-aware controls under the stage: mic/screen for the host, mic for speakers, request-to-speak for listeners. */
 export default function StageControls({
   role,
   micState,
@@ -18,11 +17,6 @@ export default function StageControls({
   muted,
   onToggleMute,
   onRetryMic,
-  cameraState,
-  cameraError,
-  onToggleCamera,
-  cameras,
-  onSwitchCamera,
   isSharingScreen,
   onStartScreenShare,
   onStopScreenShare,
@@ -37,11 +31,6 @@ export default function StageControls({
   muted: boolean;
   onToggleMute: () => void;
   onRetryMic: () => void;
-  cameraState: CameraState;
-  cameraError: string | null;
-  onToggleCamera: () => void;
-  cameras: { deviceId: string; label: string }[];
-  onSwitchCamera: (deviceId: string) => void;
   isSharingScreen: boolean;
   onStartScreenShare: () => void;
   onStopScreenShare: () => void;
@@ -54,7 +43,7 @@ export default function StageControls({
   const cooldownSecs = useCountdown(speakCooldownUntil);
   if (role === 'listener') {
     return (
-      <div className="flex animate-slide-down flex-wrap items-center gap-3 rounded-xl border border-border bg-panel px-4 py-3">
+      <div className="glass flex animate-slide-down flex-wrap items-center gap-3 rounded-2xl px-4 py-3">
         {speakRequest === 'pending' ? (
           <>
             <span role="status" className="flex items-center gap-2 text-sm text-text-secondary">
@@ -78,7 +67,7 @@ export default function StageControls({
               onClick={onRequestSpeak}
               disabled={cooldownSecs > 0}
               aria-live="polite"
-              className="btn-shine group/hand ml-auto flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-hover disabled:text-text-secondary disabled:hover:bg-hover"
+              className="cta-border group/hand ml-auto flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:text-text-secondary"
             >
               {cooldownSecs > 0 ? <Timer size={15} /> : <Hand size={15} className="origin-bottom group-hover/hand:animate-wiggle" />}
               {cooldownSecs > 0 ? `Ask again in ${cooldownSecs}s` : 'Request to speak'}
@@ -107,12 +96,6 @@ export default function StageControls({
         micState={micState}
         muted={muted}
         onToggleMute={onToggleMute}
-        cameraState={cameraState}
-        cameraError={cameraError}
-        onToggleCamera={onToggleCamera}
-        cameraDisabledReason={cameraSupported ? undefined : 'Camera is not supported in this browser'}
-        cameras={cameras}
-        onSwitchCamera={onSwitchCamera}
         screenSupported={screenShareSupported}
         isSharingScreen={isSharingScreen}
         onStartScreenShare={onStartScreenShare}

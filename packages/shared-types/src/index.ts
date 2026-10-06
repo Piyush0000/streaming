@@ -467,7 +467,7 @@ export type MediaClientRequestType =
 
 /** A peer may have a mic-audio producer AND a screen-share video producer active at once. */
 export type ProducerKind = 'audio' | 'video';
-export type ProducerSource = 'mic' | 'camera' | 'screen';
+export type ProducerSource = 'mic' | 'screen';
 
 export interface MediaRequest<T = unknown> {
   id: string;

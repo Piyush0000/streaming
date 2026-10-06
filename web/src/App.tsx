@@ -12,6 +12,7 @@ import StreamPage from './pages/StreamPage';
 import GuidelinesPage from './pages/GuidelinesPage';
 import InvitePage from './pages/InvitePage';
 const ElonixHubPage = lazy(() => import('./pages/ElonixHubPage'));
+const TradePage = lazy(() => import('./pages/TradePage'));
 import SettingsPage from './pages/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
 import { BlocksProvider } from './hooks/useBlocks';
@@ -126,6 +127,14 @@ function AppRoutes() {
         <Route path="/live/:streamId" element={<StreamPage />} />
         <Route path="/guidelines" element={<GuidelinesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route
+          path="/trade"
+          element={
+            <Suspense fallback={<FullPageSpinner label="Loading…" />}>
+              <TradePage />
+            </Suspense>
+          }
+        />
       </Route>
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

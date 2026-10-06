@@ -9,9 +9,6 @@ import {
   RemotePeerAudio,
   RemotePeerVideo,
   describeMediaJoinError,
-  describeCameraError,
-  cameraSupported,
-  listCameras,
 } from '../lib/media';
 import { getChannel, isChannelGone } from '../lib/channels';
 import { useSession } from '../context/SessionContext';
@@ -27,7 +24,8 @@ import ErrorBanner from '../components/ErrorBanner';
 import AccessDenied from '../components/AccessDenied';
 import ChannelSettingsModal from '../components/ChannelSettingsModal';
 import ParticipantGrid from '../components/ParticipantGrid';
-import CallControls, { DeviceState } from '../components/CallControls';
+import AnimatedBackground from '../components/AnimatedBackground';
+import CallControls from '../components/CallControls';
 import type { TileModel } from '../components/ParticipantTile';
 import { useProfiles } from '../hooks/useProfiles';
 
@@ -66,11 +64,6 @@ export default function ChannelPage() {
   const [localScreenStream, setLocalScreenStream] = useState<MediaStream | null>(null);
   const [remoteScreenShares, setRemoteScreenShares] = useState<Map<string, RemotePeerVideo>>(new Map());
 
-  const [cameraState, setCameraState] = useState<DeviceState>('off');
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
-  const [remoteCameras, setRemoteCameras] = useState<Map<string, RemotePeerVideo>>(new Map());
-  const [cameras, setCameras] = useState<{ deviceId: string; label: string }[]>([]);
   /** peerId -> userId, so tiles can show profile pictures. */
   const [peerUserIds, setPeerUserIds] = useState<Map<string, string>>(new Map());
 
@@ -182,11 +175,9 @@ export default function ChannelPage() {
         name: selfProfile?.displayName || selfUsername || 'You',
         avatarUrl: selfProfile?.avatarUrl ?? null,
         avatarPreset: selfProfile?.avatarPreset ?? null,
-        videoStream: localCameraStream,
         audioStream: selfMicStream,
         isSelf: true,
         micMuted: muted,
-        cameraBlocked: cameraState === 'error',
       },
     ];
     for (const peer of remotePeers.values()) {
@@ -196,12 +187,11 @@ export default function ChannelPage() {
         name: profile?.displayName || peer.username,
         avatarUrl: profile?.avatarUrl ?? null,
         avatarPreset: profile?.avatarPreset ?? null,
-        videoStream: remoteCameras.get(peer.peerId)?.stream ?? null,
         audioStream: peer.stream,
       });
     }
     return list;
-  }, [voiceState, selfProfile, selfUsername, localCameraStream, selfMicStream, muted, cameraState, remotePeers, profiles, peerUserIds, remoteCameras]);
+  }, [voiceState, selfProfile, selfUsername, selfMicStream, muted, remotePeers, profiles, peerUserIds]);
 
   const screenTiles = useMemo<TileModel[]>(() => {
     const list: TileModel[] = [];
@@ -237,10 +227,6 @@ export default function ChannelPage() {
     setRemoteScreenShares(new Map());
     setLocalScreenStream(null);
     setIsSharingScreen(false);
-    setRemoteCameras(new Map());
-    setLocalCameraStream(null);
-    setCameraState('off');
-    setCameraError(null);
     setPeerUserIds(new Map());
     setMuted(false);
   }
@@ -264,23 +250,6 @@ export default function ChannelPage() {
             next.delete(peerId);
             return next;
           });
-        },
-        onRemoteCamera: (peer) => {
-          setRemoteCameras((prev) => new Map(prev).set(peer.peerId, peer));
-        },
-        onRemoteCameraEnded: (peerId) => {
-          setRemoteCameras((prev) => {
-            if (!prev.has(peerId)) return prev;
-            const next = new Map(prev);
-            next.delete(peerId);
-            return next;
-          });
-        },
-        onLocalProducerClosed: (source) => {
-          if (source === 'camera') {
-            setCameraState('off');
-            setLocalCameraStream(null);
-          }
         },
         onPeerJoined: (peerId, username, info) => {
           if (info?.userId) setPeerUserIds((prev) => new Map(prev).set(peerId, info.userId));
@@ -367,48 +336,6 @@ export default function ChannelPage() {
     setLocalScreenStream(null);
   }
 
-  async function handleStartCamera(deviceId?: string) {
-    const client = voiceClientRef.current;
-    if (!client) return;
-    setCameraState('starting');
-    setCameraError(null);
-    try {
-      const stream = await client.startCamera(deviceId);
-      if (!client.isCameraLive) {
-        setCameraState('off');
-        return;
-      }
-      setLocalCameraStream(stream);
-      setCameraState('live');
-      setCameras(await listCameras());
-    } catch (err) {
-      setLocalCameraStream(null);
-      setCameraState('error');
-      setCameraError(describeCameraError(err));
-    }
-  }
-
-  async function handleStopCamera() {
-    setCameraState('off');
-    setCameraError(null);
-    setLocalCameraStream(null);
-    await voiceClientRef.current?.stopCamera();
-  }
-
-  function handleToggleCamera() {
-    if (voiceClientRef.current?.isCameraLive) void handleStopCamera();
-    else void handleStartCamera();
-  }
-
-  async function handleSwitchCamera(deviceId: string) {
-    try {
-      setLocalCameraStream(await voiceClientRef.current!.switchCamera(deviceId));
-      setCameraState('live');
-    } catch (err) {
-      setCameraError(describeCameraError(err));
-    }
-  }
-
   function handleToggleMute() {
     const next = !muted;
     voiceClientRef.current?.setMicMuted(next);
@@ -476,25 +403,21 @@ export default function ChannelPage() {
         )}
 
         {voiceState === 'connected' && (
-          <div className="flex max-h-[62vh] shrink-0 animate-slide-down flex-col gap-3 overflow-y-auto border-b border-border bg-base px-3 py-3 sm:px-4">
+          <div className="relative flex max-h-[62vh] shrink-0 animate-slide-down flex-col gap-3 overflow-y-auto border-b border-border bg-base px-3 py-3 sm:px-4">
+            <AnimatedBackground variant="grid-pulse" subtle />
+            <div className="relative z-10 flex flex-col gap-3">
             <ParticipantGrid tiles={tiles} screens={screenTiles} />
             <CallControls
               micState="live"
               muted={muted}
               onToggleMute={handleToggleMute}
-              cameraState={cameraState}
-              cameraError={cameraError}
-              onToggleCamera={handleToggleCamera}
-              onDismissCameraError={() => setCameraError(null)}
-              cameraDisabledReason={cameraSupported ? undefined : 'Camera is not supported in this browser'}
-              cameras={cameras}
-              onSwitchCamera={handleSwitchCamera}
               screenSupported={screenShareSupported}
               isSharingScreen={isSharingScreen}
               onStartScreenShare={handleStartScreenShare}
               onStopScreenShare={handleStopScreenShare}
               onLeave={handleLeaveVoice}
             />
+            </div>
           </div>
         )}
 

@@ -4,17 +4,14 @@ import { useProfiles } from '../hooks/useProfiles';
 import ParticipantGrid from './ParticipantGrid';
 import type { TileModel } from './ParticipantTile';
 
-/** Host + speakers as a Meet-style grid (camera or avatar), with the host's screen-share spotlighted. */
+/** Host + speakers as a Meet-style grid (avatar tiles), with the host's screen-share spotlighted. */
 export default function StreamStage({
   hostId,
   hostUsername,
   participants,
   audioByUserId,
-  cameraByUserId,
-  localCamera,
   micStream,
   selfMuted,
-  cameraBlocked,
   screens,
   renderActions,
 }: {
@@ -22,15 +19,9 @@ export default function StreamStage({
   hostUsername: string;
   participants: Participant[];
   audioByUserId: Map<string, MediaStream>;
-  /** Remote speakers' camera streams by userId. */
-  cameraByUserId: Map<string, MediaStream>;
-  /** Our own camera stream, when on. */
-  localCamera: MediaStream | null;
   /** Our own mic stream, for the local speaking indicator. */
   micStream: MediaStream | null;
   selfMuted: boolean;
-  /** Our camera was blocked / not found (shown on our tile). */
-  cameraBlocked?: boolean;
   screens: ScreenTile[];
   renderActions?: (p: Participant) => ReactNode;
 }) {
@@ -65,12 +56,10 @@ export default function StreamStage({
         name: profile?.displayName || p.username || (p.userId === hostId ? hostUsername : 'Guest'),
         avatarUrl: profile?.avatarUrl ?? null,
         avatarPreset: profile?.avatarPreset ?? null,
-        videoStream: p.isSelf ? localCamera : cameraByUserId.get(p.userId) ?? null,
         audioStream: p.isSelf ? micStream : audioByUserId.get(p.userId) ?? null,
         isSelf: p.isSelf,
         micMuted: p.isSelf && selfMuted,
         badge: p.role === 'host' ? 'host' : 'speaker',
-        cameraBlocked: p.isSelf && cameraBlocked,
         actions: p.isSelf || p.role === 'host' ? null : renderActions?.(p),
       });
     }
@@ -81,13 +70,10 @@ export default function StreamStage({
     hostUsername,
     onStage,
     profiles,
-    localCamera,
-    cameraByUserId,
     micStream,
     audioByUserId,
     selfMuted,
-    cameraBlocked,
-    renderActions,
+      renderActions,
   ]);
 
   const screenTiles = useMemo<TileModel[]>(

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Channel, CreateChannelRequest } from '@streaming/shared-types';
-import { Compass, Hash, HelpCircle, Lock, LogOut, Plus, Radio, Settings, Volume2, X } from 'lucide-react';
+import { Compass, LineChart, Hash, HelpCircle, Lock, LogOut, Plus, Radio, Settings, Volume2, X } from 'lucide-react';
 import { useMemo } from 'react';
 import { useProfiles } from '../hooks/useProfiles';
 import { useLiveStreams } from '../context/LiveStreamsContext';
@@ -26,6 +26,7 @@ export default function Sidebar({
 }) {
   const { session, logout } = useSession();
   const navigate = useNavigate();
+  const location = useLocation();
   const { channelId, streamId } = useParams();
   const live = useLiveStreams();
   const { startTour } = useTour();
@@ -121,7 +122,7 @@ export default function Sidebar({
                       }}
                       data-active={s.id === streamId}
                       className={cx(
-                        'nav-item flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
+                        'nav-item glow-row flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
                         s.id === streamId
                           ? 'bg-accent-soft text-text-primary'
                           : 'text-text-secondary hover:bg-hover hover:text-text-primary'
@@ -152,6 +153,21 @@ export default function Sidebar({
               onCloseMobile();
             }}
           />
+
+          <div className="mb-3">
+            <button
+              data-tour="trade"
+              onClick={() => {
+                navigate('/trade');
+                onCloseMobile();
+              }}
+              data-active={location.pathname === '/trade'}
+              className="nav-item flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-text-secondary transition-colors hover:bg-hover hover:text-text-primary data-[active=true]:bg-accent-soft data-[active=true]:text-text-primary"
+            >
+              <LineChart size={14} className="shrink-0 text-text-muted" />
+              Paper trading
+            </button>
+          </div>
 
           {loading && <ChannelListSkeleton />}
 
@@ -303,7 +319,7 @@ function ChannelGroup({
                 onClick={() => onSelect(c.id)}
                 data-active={active}
                 className={cx(
-                  'nav-item flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
+                  'nav-item glow-row flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
                   active
                     ? 'bg-accent-soft text-text-primary'
                     : 'text-text-secondary hover:bg-hover hover:text-text-primary'

@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { Crown, MicOff, MonitorUp, Pin, PinOff, VideoOff } from 'lucide-react';
+import { Crown, MicOff, MonitorUp, Pin, PinOff } from 'lucide-react';
 import Avatar from './Avatar';
 import { useSpeaking } from '../lib/speaking';
 import { cx } from '../lib/format';
@@ -11,7 +11,7 @@ export interface TileModel {
   name: string;
   avatarUrl?: string | null;
   avatarPreset?: string | null;
-  /** Camera (or screen) video. When absent/null the tile shows the avatar. */
+  /** Screen-share video (screen tiles only). People tiles are avatar-only. */
   videoStream?: MediaStream | null;
   /** Mic audio, only used for the speaking indicator (playback happens elsewhere). */
   audioStream?: MediaStream | null;
@@ -21,8 +21,6 @@ export interface TileModel {
   /** Host who has not (re)joined the media room. */
   offline?: boolean;
   isScreen?: boolean;
-  /** Self tile only: the camera was blocked / not found. */
-  cameraBlocked?: boolean;
   actions?: ReactNode;
 }
 
@@ -42,9 +40,9 @@ export default function ParticipantTile({
   onTogglePin: (id: string) => void;
 }) {
   const speaking = useSpeaking(tile.micMuted || tile.isScreen || tile.offline ? null : tile.audioStream);
-  const hasVideo = !!tile.videoStream;
+  const hasVideo = !!tile.isScreen && !!tile.videoStream;
   const label = tile.isScreen ? (tile.isSelf ? 'You are sharing' : `${tile.name} is sharing`) : tile.name;
-  const avatarSize = spotlight ? 112 : compact ? 40 : 76;
+  const avatarSize = spotlight ? 128 : compact ? 44 : 84;
 
   return (
     <div
@@ -52,7 +50,7 @@ export default function ParticipantTile({
       aria-label={`${label}${speaking ? ', speaking' : ''}${tile.micMuted ? ', muted' : ''}`}
       onClick={() => onTogglePin(tile.id)}
       className={cx(
-        'group/tile relative aspect-video w-full cursor-pointer select-none overflow-hidden rounded-xl border-2 border-border bg-panel transition-colors duration-base',
+        'group/tile stage-tile relative aspect-video w-full cursor-pointer select-none overflow-hidden rounded-2xl border-2 transition-colors duration-base',
         speaking && 'tile-speaking',
         tile.offline && 'opacity-60'
       )}
@@ -67,19 +65,41 @@ export default function ParticipantTile({
           playsInline
           className={cx(
             'absolute inset-0 h-full w-full bg-black',
-            tile.isScreen ? 'object-contain' : 'object-cover',
-            tile.isSelf && !tile.isScreen && '-scale-x-100'
+            'object-contain'
           )}
         />
       ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-gradient-to-br from-panel to-base">
-          <Avatar name={tile.name} src={tile.avatarUrl ?? null} preset={tile.avatarPreset} size={avatarSize} />
-          {tile.cameraBlocked && !compact && (
-            <span className="mt-1 inline-flex items-center gap-1 rounded bg-danger/15 px-2 py-0.5 text-[11px] text-danger">
-              <VideoOff size={11} /> Camera blocked
+        <div className="hover-tilt absolute inset-0 flex flex-col items-center justify-center gap-1">
+          <Avatar
+            name={tile.name}
+            src={tile.avatarUrl ?? null}
+            preset={tile.avatarPreset}
+            size={avatarSize}
+            speaking={speaking}
+            gradientRing={tile.badge === 'host'}
+            glow={tile.badge === 'host' && !speaking && !tile.offline}
+          />
+          {speaking && !compact && (
+            <span className="eq mt-3" role="img" aria-label="Speaking">
+              <i />
+              <i />
+              <i />
+              <i />
+              <i />
             </span>
           )}
         </div>
+      )}
+
+      {tile.badge === 'host' && !tile.isScreen && (
+        <span
+          className="crown-badge absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full text-black"
+          title="Host"
+          role="img"
+          aria-label="Host"
+        >
+          <Crown size={13} />
+        </span>
       )}
 
       {/* top-right: per-participant actions + pin */}
@@ -101,7 +121,7 @@ export default function ParticipantTile({
       </div>
 
       {/* bottom label bar */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-6 text-white">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/75 to-transparent px-2.5 pb-2 pt-8 text-white">
         {tile.isScreen && <MonitorUp size={12} className="shrink-0" />}
         <span className={cx('truncate font-medium', compact ? 'text-[11px]' : 'text-xs sm:text-sm')}>
           {label}

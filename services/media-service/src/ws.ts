@@ -82,7 +82,7 @@ function fail(id: string, error: string): MediaResponse {
   return { id, ok: false, error };
 }
 
-/** The producer's `source` ('mic' | 'camera' | 'screen') is carried in its mediasoup appData. */
+/** The producer's `source` ('mic' | 'screen') is carried in its mediasoup appData. */
 function producerSource(producer: { appData: Record<string, unknown> }): ProducerSource {
   return (producer.appData.source as ProducerSource | undefined) ?? 'mic';
 }
@@ -354,11 +354,11 @@ function targetPeer(room: Room, payload: PeerTargetPayload): Peer {
   return target;
 }
 
-/** Closes a peer's mic and camera producers (used when a speaker is demoted to listener). */
+/** Closes a peer's mic producer(s) (used when a speaker is demoted to listener). */
 function closeSpeakerProducers(room: Room, target: Peer) {
   for (const producer of Array.from(target.producers.values())) {
     const src = producerSource(producer);
-    if (src !== 'mic' && src !== 'camera') continue;
+    if (src !== 'mic') continue;
     const producerId = producer.id;
     // Closing fires 'producerclose' on every consumer -> they get 'producer-closed'.
     producer.close();
@@ -536,14 +536,17 @@ export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
             const transport = peer?.transports.get(transportId);
             if (!room || !peer || !transport) throw new Error('transport not found');
 
-            if (source !== 'mic' && source !== 'camera' && source !== 'screen') {
+            if ((source as string) === 'camera') {
+              throw new Error('Camera/video calls are not supported. Only microphone audio and host screen-share can be published.');
+            }
+            if (source !== 'mic' && source !== 'screen') {
               throw new Error(`invalid producer source: ${String(source)}`);
             }
             if (kind !== 'audio' && kind !== 'video') {
               throw new Error(`invalid producer kind: ${String(kind)}`);
             }
             if ((source === 'mic') !== (kind === 'audio')) {
-              throw new Error('mic must be an audio producer; camera and screen must be video producers');
+              throw new Error('mic must be an audio producer; screen must be a video producer');
             }
 
             // Server-side role enforcement for stream rooms (plain voice
@@ -552,18 +555,15 @@ export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
               if (source === 'mic' && peer.role !== 'host' && peer.role !== 'speaker') {
                 throw new Error('Only the host and approved speakers can speak. Request to speak first.');
               }
-              if (source === 'camera' && peer.role !== 'host' && peer.role !== 'speaker') {
-                throw new Error('Only the host and approved speakers can turn on their camera.');
-              }
               if (source === 'screen' && peer.role !== 'host') {
                 throw new Error('Only the host can share their screen.');
               }
             }
 
-            // One screen-share and one camera producer per peer at a time. If
+            // One screen-share producer per peer at a time. If
             // they already have one (e.g. re-starting without the old one
             // tearing down cleanly), replace it rather than stacking producers.
-            if (source === 'screen' || source === 'camera') {
+            if (source === 'screen') {
               for (const existing of Array.from(peer.producers.values())) {
                 if (producerSource(existing) === source) {
                   // Closing triggers each consumer's own 'producerclose' event

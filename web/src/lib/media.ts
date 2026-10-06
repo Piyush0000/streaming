@@ -70,36 +70,6 @@ export function describeMediaJoinError(err: unknown): string {
   return (err as Error)?.message || 'Could not join the room.';
 }
 
-/** User-facing text for a failed getUserMedia({ video }) (camera). */
-export function describeCameraError(err: unknown): string {
-  const name = (err as DOMException)?.name;
-  if (name === 'NotAllowedError' || name === 'SecurityError') {
-    return 'Camera access was blocked. Allow the camera for this site in your browser settings, then try again.';
-  }
-  if (name === 'NotFoundError' || name === 'OverconstrainedError') {
-    return 'No camera was found. Plug one in, then try again.';
-  }
-  if (name === 'NotReadableError' || name === 'AbortError') {
-    return 'Your camera is in use by another app. Close it, then try again.';
-  }
-  return (err as Error)?.message || 'Could not start the camera.';
-}
-
-/** True when this browser can capture a camera at all. */
-export const cameraSupported = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
-
-/** Lists video input devices (labels are empty until camera permission has been granted). */
-export async function listCameras(): Promise<{ deviceId: string; label: string }[]> {
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    return devices
-      .filter((d) => d.kind === 'videoinput')
-      .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Camera ${i + 1}` }));
-  } catch {
-    return [];
-  }
-}
-
 export interface RemotePeerAudio {
   peerId: string;
   username: string;
@@ -117,9 +87,6 @@ export interface VoiceClientCallbacks {
   onRemoteStream: (peer: RemotePeerAudio) => void;
   onRemoteScreenShare: (peer: RemotePeerVideo) => void;
   onRemoteScreenShareEnded: (peerId: string) => void;
-  /** A remote peer turned their camera on. */
-  onRemoteCamera?: (peer: RemotePeerVideo) => void;
-  onRemoteCameraEnded?: (peerId: string) => void;
   /** A peer joined this voice room after we did (not the initial roster on our own join). */
   onPeerJoined: (peerId: string, username: string, info?: { userId: string; role: PeerRole }) => void;
   onPeerLeft: (peerId: string) => void;
@@ -138,7 +105,7 @@ export interface VoiceClientCallbacks {
   /** The signaling socket closed without us calling leave() (and without a `removed` notice first). */
   onDisconnected?: () => void;
   /** One of OUR producers was closed by the server (e.g. we were demoted). */
-  onLocalProducerClosed?: (source: 'mic' | 'camera') => void;
+  onLocalProducerClosed?: (source: 'mic') => void;
 }
 
 /** Result of {@link VoiceClient.joinStream}. */
@@ -171,9 +138,6 @@ export class VoiceClient {
   private screenStream?: MediaStream;
   private screenProducer?: Producer;
   private micProducer?: Producer;
-  private cameraProducer?: Producer;
-  private cameraStream?: MediaStream;
-  private cameraGeneration = 0;
   private sendTransportPromise?: Promise<void>;
   private joined = false;
   private leaving = false;
@@ -239,7 +203,6 @@ export class VoiceClient {
         // producer-closed notification before this depending on message
         // ordering, so clean it up defensively here too.
         this.callbacks.onRemoteScreenShareEnded(peerId);
-        this.callbacks.onRemoteCameraEnded?.(peerId);
         this.callbacks.onPeerLeft(peerId);
         break;
       }
@@ -251,18 +214,10 @@ export class VoiceClient {
           this.callbacks.onLocalProducerClosed?.('mic');
           break;
         }
-        if (this.cameraProducer && this.cameraProducer.id === producerId) {
-          // The server closed our own camera producer (we were demoted).
-          this.releaseLocalCamera();
-          this.callbacks.onLocalProducerClosed?.('camera');
-          break;
-        }
         const meta = this.consumedProducerMeta.get(producerId);
         this.consumedProducerMeta.delete(producerId);
         this.consumedProducers.delete(producerId);
-        if (meta?.source === 'camera') {
-          this.callbacks.onRemoteCameraEnded?.(peerId);
-        } else if (meta?.kind === 'video') {
+        if (meta?.kind === 'video') {
           this.callbacks.onRemoteScreenShareEnded(peerId);
         }
         break;
@@ -435,7 +390,7 @@ export class VoiceClient {
     return this.request<void>('remove-peer', { peerId });
   }
 
-  /** Idempotent and safe to call concurrently (mic + camera starting together share one transport). */
+  /** Idempotent and safe to call concurrently (concurrent starters share one transport). */
   private createSendTransport(): Promise<void> {
     if (this.sendTransport) return Promise.resolve();
     if (!this.sendTransportPromise) {
@@ -519,9 +474,7 @@ export class VoiceClient {
     this.consumedProducerMeta.set(producerId, { peerId, kind: result.kind, source: result.source });
 
     const stream = new MediaStream([consumer.track]);
-    if (result.kind === 'video' && result.source === 'camera') {
-      this.callbacks.onRemoteCamera?.({ peerId, username, stream, producerId });
-    } else if (result.kind === 'video') {
+    if (result.kind === 'video') {
       this.callbacks.onRemoteScreenShare({ peerId, username, stream, producerId });
     } else {
       this.callbacks.onRemoteStream({ peerId, username, stream });
@@ -533,118 +486,6 @@ export class VoiceClient {
     this.localStream?.getAudioTracks().forEach((track) => {
       track.enabled = !muted;
     });
-  }
-
-  // -------------------------------------------------------------------------
-  // Camera
-  // -------------------------------------------------------------------------
-
-  /** True while a camera producer is live. */
-  get isCameraLive(): boolean {
-    return !!this.cameraProducer && !this.cameraProducer.closed;
-  }
-
-  /** The local camera stream (for the self-view tile), if on. */
-  get localCameraStream(): MediaStream | undefined {
-    return this.cameraStream;
-  }
-
-  /**
-   * Prompts for the camera and publishes it as the peer's single camera
-   * producer. Throws on permission denial / missing device / server rejection
-   * (use {@link describeCameraError} for the message).
-   */
-  async startCamera(deviceId?: string): Promise<MediaStream> {
-    if (this.isCameraLive) return this.cameraStream!;
-    if (!this.joined && !this.localStream) throw new Error('not connected to the room');
-    if (!cameraSupported) {
-      const e = new Error('Camera is not supported in this browser.');
-      e.name = 'NotFoundError';
-      throw e;
-    }
-    const generation = ++this.cameraGeneration;
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: {
-        ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 30, max: 30 },
-      },
-    });
-    if (generation !== this.cameraGeneration || this.leaving) {
-      stream.getTracks().forEach((t) => t.stop());
-      return stream;
-    }
-    try {
-      await this.createSendTransport();
-      const track = stream.getVideoTracks()[0];
-      const producer = await this.sendTransport!.produce({ track, appData: { source: 'camera' } });
-      if (generation !== this.cameraGeneration || this.leaving) {
-        producer.close();
-        this.request('close-producer', { producerId: producer.id }).catch(() => {});
-        stream.getTracks().forEach((t) => t.stop());
-        return stream;
-      }
-      this.cameraStream = stream;
-      this.cameraProducer = producer;
-      this.watchCameraTrack(producer, track);
-      return stream;
-    } catch (err) {
-      stream.getTracks().forEach((t) => t.stop());
-      throw err;
-    }
-  }
-
-  /** Device unplugged / revoked while live: tear the producer down so peers see it end. */
-  private watchCameraTrack(producer: Producer, track: MediaStreamTrack) {
-    track.addEventListener('ended', () => {
-      if (this.cameraProducer === producer) {
-        void this.stopCamera().then(() => this.callbacks.onLocalProducerClosed?.('camera'));
-      }
-    });
-  }
-
-  /** Switches to another camera without tearing the producer down. Starts the camera if it is off. */
-  async switchCamera(deviceId: string): Promise<MediaStream> {
-    const producer = this.cameraProducer;
-    if (!producer || producer.closed) return this.startCamera(deviceId);
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
-    });
-    if (this.cameraProducer !== producer || producer.closed) {
-      stream.getTracks().forEach((t) => t.stop());
-      return stream;
-    }
-    const track = stream.getVideoTracks()[0];
-    await producer.replaceTrack({ track });
-    this.cameraStream?.getTracks().forEach((t) => t.stop());
-    this.cameraStream = stream;
-    this.watchCameraTrack(producer, track);
-    return stream;
-  }
-
-  /** Stops publishing the camera, releases the device and tells the server (which notifies the room). Safe when off. */
-  async stopCamera(): Promise<void> {
-    this.cameraGeneration++;
-    const producer = this.cameraProducer;
-    this.releaseLocalCamera();
-    if (producer && !producer.closed) {
-      const producerId = producer.id;
-      producer.close();
-      try {
-        await this.request('close-producer', { producerId });
-      } catch {
-        // best-effort - the server closes it when the peer leaves / is demoted
-      }
-    }
-  }
-
-  private releaseLocalCamera() {
-    this.cameraProducer = undefined;
-    this.cameraStream?.getTracks().forEach((t) => t.stop());
-    this.cameraStream = undefined;
   }
 
   get isScreenSharing(): boolean {
@@ -700,14 +541,12 @@ export class VoiceClient {
   async leave() {
     this.leaving = true;
     this.micGeneration++;
-    this.cameraGeneration++;
     try {
       await this.request('leave-room');
     } catch {
       // best-effort
     }
     await this.stopScreenShare();
-    this.releaseLocalCamera();
     this.localStream?.getTracks().forEach((t) => t.stop());
     this.sendTransport?.close();
     this.recvTransport?.close();

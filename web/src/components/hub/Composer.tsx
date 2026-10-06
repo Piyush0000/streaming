@@ -11,18 +11,20 @@ interface Props {
   token: string;
   onClose: () => void;
   onCreated: (post: HubPost) => void;
+  /** Optional prefill (e.g. from a paper trade). */
+  initial?: { symbol?: string; side?: HubSide; pnlPercent?: number };
 }
 
-export default function Composer({ token, onClose, onCreated }: Props) {
+export default function Composer({ token, onClose, onCreated, initial }: Props) {
   const { showToast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [caption, setCaption] = useState('');
-  const [symbol, setSymbol] = useState('');
-  const [side, setSide] = useState<HubSide | ''>('');
-  const [pnl, setPnl] = useState('');
+  const [symbol, setSymbol] = useState(initial?.symbol?.slice(0, 20) ?? '');
+  const [side, setSide] = useState<HubSide | ''>(initial?.side ?? '');
+  const [pnl, setPnl] = useState(typeof initial?.pnlPercent === 'number' && Number.isFinite(initial.pnlPercent) ? String(initial.pnlPercent) : '');
   const [submitting, setSubmitting] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 

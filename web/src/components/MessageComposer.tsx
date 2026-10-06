@@ -71,7 +71,7 @@ export default function MessageComposer({
   }
 
   return (
-    <div className="border-t border-border bg-panel px-4 py-3">
+    <div className="glass border-x-0 border-b-0 px-4 py-3">
       {uploadError && (
         <div className="mb-2">
           <ErrorBanner message={uploadError} onDismiss={() => setUploadError(null)} />
@@ -107,12 +107,12 @@ export default function MessageComposer({
           placeholder={uploading ? 'Uploading…' : placeholder}
           disabled={disabled || uploading}
           aria-label={placeholder}
-          className="flex-1 rounded-lg border border-border bg-base px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
+          className="flex-1 rounded-lg border border-border bg-base px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted transition-shadow focus:border-accent focus:shadow-[0_0_0_3px_rgba(59,130,246,0.18)] focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
         />
         <button
           type="submit"
           disabled={disabled || uploading || limited || !draft.trim()}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="send-fly flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-violet-500 text-white shadow-[0_0_14px_-2px_rgba(59,130,246,0.6)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
           aria-label="Send message"
         >
           <Send size={16} />

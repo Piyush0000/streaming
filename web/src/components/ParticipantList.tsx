@@ -26,12 +26,13 @@ export default function ParticipantList({
         </p>
       ) : (
         <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
-          {rows.map(({ item: p, leaving }) => (
+          {rows.map(({ item: p, leaving }, idx) => (
             <li
               key={p.userId}
               aria-hidden={leaving || undefined}
-              className={`flex items-center gap-2.5 rounded-lg border border-border bg-panel px-2.5 py-2 ${
-                leaving ? 'pointer-events-none animate-pop-out' : 'animate-pop-in'
+              style={{ ['--i' as string]: Math.min(idx, 10) }}
+              className={`glass glass-glow flex items-center gap-2.5 rounded-xl px-2.5 py-2 ${
+                leaving ? 'pointer-events-none animate-pop-out' : 'stagger'
               }`}
             >
               <Avatar name={p.username || 'Guest'} src={profiles.get(p.userId)?.avatarUrl ?? null} preset={profiles.get(p.userId)?.avatarPreset} size={28} />

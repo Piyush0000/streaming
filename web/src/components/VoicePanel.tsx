@@ -12,7 +12,7 @@ export type VoiceState = 'idle' | 'connecting' | 'connected' | 'error';
 
 /**
  * Sidebar for a voice channel: join button + roster (and the hidden <audio>
- * elements that play remote voices). The video grid and the mic / camera /
+ * elements that play remote voices). The participant grid and the mic /
  * screen-share / leave controls live above the chat (ParticipantGrid + CallControls).
  */
 export default function VoicePanel({
@@ -55,7 +55,7 @@ export default function VoicePanel({
   const peerRows = useLeavingList(remotePeers, (p) => p.peerId, 180);
 
   return (
-    <div className="flex w-full flex-col border-b border-border bg-panel md:w-72 md:shrink-0 md:border-b-0 md:border-l">
+    <div className="glass flex w-full flex-col border-x-0 border-t-0 md:w-72 md:shrink-0 md:border-b-0 md:border-l">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3">
         <Volume2 size={16} className="text-text-muted" />
         <h2 className="text-sm font-semibold text-text-primary">Voice</h2>
@@ -69,7 +69,7 @@ export default function VoicePanel({
           </span>
         )}
         {connected && (
-          <span className="ml-auto flex animate-pop-in items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
+          <span className="live-badge ml-auto flex animate-pop-in items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-white">
             <Radio size={11} /> Live
           </span>
         )}
@@ -82,7 +82,7 @@ export default function VoicePanel({
           <button
             onClick={onJoin}
             disabled={connecting}
-            className="flex items-center justify-center gap-2 rounded-lg bg-accent py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+            className="cta-border flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             {connecting ? (
               <>
@@ -132,7 +132,7 @@ function SelfRow({
 }) {
   const speaking = useSpeaking(muted ? null : stream);
   return (
-    <li className="flex animate-pop-in items-center gap-2 rounded-lg bg-hover/60 px-2 py-1.5">
+    <li className="glow-row flex animate-pop-in items-center gap-2 rounded-lg bg-hover/60 px-2 py-1.5">
       <Avatar name={username} src={avatarUrl} preset={preset} size={28} speaking={speaking} online />
       <span className="truncate text-sm text-text-primary">{username}</span>
       <span className="ml-auto text-xs text-text-muted">(you)</span>
@@ -157,7 +157,7 @@ function PeerRow({
     <li
       aria-hidden={leaving || undefined}
       className={cx(
-        'flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-hover/60',
+        'glow-row flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-hover/60',
         leaving ? 'pointer-events-none animate-pop-out' : 'animate-pop-in'
       )}
     >

@@ -17,6 +17,11 @@ interface Props {
   onDeleted: (id: string) => void;
 }
 
+const BURST = Array.from({ length: 8 }, (_, i) => {
+  const a = (i / 8) * Math.PI * 2;
+  return { lx: `${Math.round(Math.cos(a) * 20)}px`, ly: `${Math.round(Math.sin(a) * 20)}px` };
+});
+
 export default function PostCard({ post: initial, token, requireAuth, onDeleted }: Props) {
   const { showToast } = useToast();
   const { openUserCard } = useUserCard();
@@ -115,7 +120,7 @@ export default function PostCard({ post: initial, token, requireAuth, onDeleted 
   const itemCls = 'flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-hover';
 
   return (
-    <article id={`post-${post.id}`} className="overflow-hidden rounded-2xl border border-border bg-panel">
+    <article id={`post-${post.id}`} className="glass glass-glow overflow-hidden rounded-2xl">
       <div className="flex items-center gap-3 px-4 py-3">
         <button
           type="button"
@@ -194,8 +199,15 @@ export default function PostCard({ post: initial, token, requireAuth, onDeleted 
             onClick={() => void setLiked(!post.likedByMe)}
             aria-pressed={post.likedByMe}
             aria-label={post.likedByMe ? 'Unlike' : 'Like'}
-            className="flex items-center gap-1.5 rounded-lg p-2 text-sm hover:bg-hover"
+            className="relative flex items-center gap-1.5 rounded-lg p-2 text-sm hover:bg-hover"
           >
+            {bump && (
+              <span aria-hidden className="like-burst" style={{ left: 22, top: '50%' }}>
+                {BURST.map((b, i) => (
+                  <i key={i} style={{ ['--lx' as string]: b.lx, ['--ly' as string]: b.ly }} />
+                ))}
+              </span>
+            )}
             <Heart
               size={22}
               className={cx(bump && 'animate-heart-bump', post.likedByMe ? 'fill-danger text-danger' : 'text-text-secondary')}

@@ -13,6 +13,7 @@ import { hubRouter } from './routes/hub';
 import { profilesRouter } from './routes/profiles';
 import { marketRouter } from './routes/market';
 import { paperRouter } from './routes/paper';
+import { activityRouter } from './routes/activity';
 import { internalRouter } from './routes/internal';
 
 export const app = express();
@@ -51,6 +52,8 @@ app.use('/hub', hubRouter);
 app.use('/market', marketRouter);
 // Paper trading (virtual funds, real prices); auth + rate limits inside the router.
 app.use('/paper', paperRouter);
+// Join-activity feed (who just joined + from where); auth + rate limits inside the router.
+app.use('/activity', activityRouter);
 // Service-to-service only; guarded by x-internal-secret and NOT proxied by the gateway.
 app.use('/internal', internalRouter);
 

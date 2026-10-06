@@ -45,6 +45,11 @@ import MessageComposer from '../components/MessageComposer';
 import ErrorBanner from '../components/ErrorBanner';
 import { StreamPageSkeleton } from '../components/Skeleton';
 import Dots from '../components/Dots';
+import AnimatedBackground from '../components/AnimatedBackground';
+import Confetti from '../components/Confetti';
+import { ReactionBar, ReactionLayer, useReactions } from '../components/Reactions';
+import type { StackPerson } from '../components/AvatarStack';
+import { useProfiles } from '../hooks/useProfiles';
 import { cx } from '../lib/format';
 
 type SideTab = 'chat' | 'requests' | 'moderation';
@@ -328,6 +333,48 @@ export default function StreamPage() {
   const speakingCount = media.participants.length - listeners.length;
   const connected = media.status === 'connected';
 
+  // Avatar stacks for the header (real participants only) + celebration / reaction state.
+  const stackIds = useMemo(() => media.participants.map((p) => p.userId).filter(Boolean), [media.participants]);
+  const stackProfiles = useProfiles(stackIds);
+  const toPerson = useCallback(
+    (p: Participant): StackPerson => {
+      const prof = stackProfiles.get(p.userId);
+      return { key: p.userId, name: prof?.displayName || p.username || 'Guest', src: prof?.avatarUrl ?? null, preset: prof?.avatarPreset ?? null };
+    },
+    [stackProfiles]
+  );
+  const speakerPeople = useMemo(
+    () => media.participants.filter((p) => p.role !== 'listener').map(toPerson),
+    [media.participants, toPerson]
+  );
+  const listenerPeople = useMemo(() => listeners.map(toPerson), [listeners, toPerson]);
+
+  const reactions = useReactions();
+  const [burst, setBurst] = useState(0);
+  // Confetti when the host's stream goes live (first connect as host) and when we get approved to speak.
+  const burstedLive = useRef(false);
+  useEffect(() => {
+    burstedLive.current = false;
+  }, [streamId]);
+  useEffect(() => {
+    if (connected && isHost && isLive && !burstedLive.current) {
+      burstedLive.current = true;
+      setBurst((n) => n + 1);
+    }
+  }, [connected, isHost, isLive]);
+  const prevRole = useRef(media.myRole);
+  useEffect(() => {
+    if (prevRole.current === 'listener' && media.myRole === 'speaker') setBurst((n) => n + 1);
+    prevRole.current = media.myRole;
+  }, [media.myRole]);
+  const approveWithBurst = useCallback(
+    async (peerId: string) => {
+      await media.approveRequest(peerId);
+      setBurst((n) => n + 1);
+    },
+    [media]
+  );
+
   // ---- early states ---------------------------------------------------------------------
 
   if (!streamId) return null;
@@ -395,8 +442,9 @@ export default function StreamPage() {
   const requestCount = media.pendingRequests.length;
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
-      <div className="flex min-w-0 flex-col lg:flex-1 lg:overflow-y-auto">
+    <div className="relative flex h-full flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
+      <AnimatedBackground variant="aurora" />
+      <div className="relative z-10 flex min-w-0 flex-col lg:flex-1 lg:overflow-y-auto">
         <StreamHeader
           stream={{ ...s, status: isLive ? 'live' : 'ended' }}
           speakingCount={speakingCount}
@@ -409,17 +457,19 @@ export default function StreamPage() {
           canEnd={isManager}
           onEnd={handleEndStream}
           onLeave={() => navigate('/live')}
+          speakerPeople={speakerPeople}
+          listenerPeople={listenerPeople}
         />
 
         <div className="flex flex-col gap-5 p-4">
           {!isLive && (
-            <div className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-panel px-6 py-8 text-center">
+            <div className="glass flex animate-pop-in flex-col items-center gap-2 rounded-2xl px-6 py-8 text-center">
               <Radio size={26} className="text-text-muted" />
               <p className="text-base font-semibold text-text-primary">This stream has ended</p>
               <p className="text-sm text-text-secondary">You can still read the chat history.</p>
               <button
                 onClick={() => navigate('/live')}
-                className="mt-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
+                className="cta-border mt-2 rounded-lg px-4 py-2 text-sm font-semibold text-white"
               >
                 Back to live streams
               </button>
@@ -463,19 +513,20 @@ export default function StreamPage() {
 
           {isLive && (
             <>
+              <div className="relative">
               <StreamStage
                 hostId={s.hostId}
                 hostUsername={s.hostUsername}
                 participants={media.participants}
                 audioByUserId={media.audioByUserId}
-                cameraByUserId={media.cameraByUserId}
-                localCamera={media.localCamera}
                 micStream={media.micStream}
                 selfMuted={media.muted}
-                cameraBlocked={media.cameraState === 'error'}
                 screens={media.screens}
                 renderActions={renderParticipantActions}
               />
+              <ReactionLayer items={reactions.items} />
+              <Confetti trigger={burst} />
+              </div>
 
               {connected && media.myRole && (
                 <StageControls
@@ -485,11 +536,6 @@ export default function StreamPage() {
                   muted={media.muted}
                   onToggleMute={media.toggleMute}
                   onRetryMic={media.retryMic}
-                  cameraState={media.cameraState}
-                  cameraError={media.cameraError}
-                  onToggleCamera={media.toggleCamera}
-                  cameras={media.cameras}
-                  onSwitchCamera={media.switchCamera}
                   isSharingScreen={media.isSharingScreen}
                   onStartScreenShare={media.startScreenShare}
                   onStopScreenShare={media.stopScreenShare}
@@ -500,6 +546,8 @@ export default function StreamPage() {
                 />
               )}
 
+              {connected && <ReactionBar onReact={reactions.fire} />}
+
               {connected && <ParticipantList listeners={listeners} renderActions={renderParticipantActions} />}
             </>
           )}
@@ -508,7 +556,7 @@ export default function StreamPage() {
 
       <aside
         ref={asideRef}
-        className="flex h-[80dvh] shrink-0 flex-col border-t border-border bg-panel lg:h-auto lg:w-[360px] lg:border-l lg:border-t-0"
+        className="glass relative z-10 flex h-[80dvh] shrink-0 flex-col border-x-0 border-b-0 lg:h-auto lg:w-[360px] lg:border-l lg:border-t-0"
       >
         <div role="tablist" aria-label="Stream panels" className="flex shrink-0 border-b border-border">
           <TabButton active={tab === 'chat'} onClick={() => setTab('chat')} id="chat">
@@ -560,7 +608,7 @@ export default function StreamPage() {
         {tab === 'requests' && isManager && (
           <div role="tabpanel" id="panel-requests" className="min-h-0 flex-1 animate-fade-in overflow-y-auto">
             {isLive ? (
-              <SpeakRequestQueue requests={media.pendingRequests} onApprove={media.approveRequest} onDeny={media.denyRequest} />
+              <SpeakRequestQueue requests={media.pendingRequests} onApprove={approveWithBurst} onDeny={media.denyRequest} />
             ) : (
               <p className="px-4 py-8 text-center text-sm text-text-muted">The stream has ended.</p>
             )}

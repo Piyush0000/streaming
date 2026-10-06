@@ -7,6 +7,7 @@ import { ChannelsProvider } from '../context/ChannelsContext';
 import { useSession } from '../context/SessionContext';
 import { TourProvider } from '../components/tour/ProductTour';
 import PageTransition from '../components/PageTransition';
+import ActivityNotifier from '../components/ActivityNotifier';
 
 /**
  * Persistent shell shown for every authenticated route: sidebar (channel list +
@@ -20,6 +21,7 @@ export default function AppLayout() {
     <ChannelsProvider>
       <LiveStreamsProvider>
         <TourProvider userId={session?.user.id} setSidebarOpen={setMobileOpen}>
+        <ActivityNotifier />
         <div className="flex h-[100dvh] w-full overflow-hidden bg-base text-text-primary">
           <Sidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
 

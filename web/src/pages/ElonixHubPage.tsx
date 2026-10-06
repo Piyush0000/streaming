@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, RefreshCw } from 'lucide-react';
 import { useSession } from '../context/SessionContext';
 import { useToast } from '../context/ToastContext';
-import { hubApi, HubPost } from '../lib/hub';
+import { hubApi, HubPost, HubSide } from '../lib/hub';
 import { rememberPostLoginPath } from '../lib/redirect';
 import HubNav from '../components/hub/HubNav';
 import PostCard from '../components/hub/PostCard';
 import Composer from '../components/hub/Composer';
 import Skeleton from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
+import AnimatedBackground from '../components/AnimatedBackground';
 
 function PostSkeleton() {
   return (
@@ -32,6 +33,7 @@ function PostSkeleton() {
 
 export default function ElonixHubPage() {
   const navigate = useNavigate();
+  const routeLocation = useLocation();
   const { session, initializing } = useSession();
   const { showToast } = useToast();
   const token = session?.accessToken ?? null;
@@ -41,6 +43,8 @@ export default function ElonixHubPage() {
   const [failed, setFailed] = useState(false);
   const [done, setDone] = useState(false);
   const [composer, setComposer] = useState(false);
+  const [prefill, setPrefill] = useState<{ symbol?: string; side?: HubSide; pnlPercent?: number } | undefined>(undefined);
+  const prefillHandled = useRef(false);
   const inflight = useRef(false);
   const sentinel = useRef<HTMLDivElement>(null);
 
@@ -51,6 +55,23 @@ export default function ElonixHubPage() {
     navigate('/login', { state: { from: '/elonixhub' } });
     return false;
   }, [token, navigate, showToast]);
+
+  // "Share to Elonix Hub" from paper trading: router state prefills the composer (state is validated, never trusted).
+  useEffect(() => {
+    if (prefillHandled.current || !token) return;
+    const share = (routeLocation.state as { share?: unknown } | null)?.share as
+      | { symbol?: unknown; side?: unknown; pnlPercent?: unknown }
+      | undefined;
+    if (!share || typeof share !== 'object') return;
+    prefillHandled.current = true;
+    const symbol = typeof share.symbol === 'string' && /^[A-Z0-9]{2,20}$/.test(share.symbol) ? share.symbol : undefined;
+    const side = share.side === 'long' || share.side === 'short' ? share.side : undefined;
+    const pnl = typeof share.pnlPercent === 'number' && Number.isFinite(share.pnlPercent) && Math.abs(share.pnlPercent) <= 100000 ? share.pnlPercent : undefined;
+    setPrefill({ symbol, side, pnlPercent: pnl });
+    setComposer(true);
+    // consume the one-shot state so a refresh does not reopen the composer
+    navigate(routeLocation.pathname, { replace: true, state: null });
+  }, [token, routeLocation.state, routeLocation.pathname, navigate]);
 
   const load = useCallback(
     async (reset: boolean, from: string | null) => {
@@ -101,30 +122,35 @@ export default function ElonixHubPage() {
   const empty = !loading && !failed && posts.length === 0;
 
   return (
-    <div className="min-h-[100dvh] animate-page-in bg-base text-text-primary">
+    <div className="relative min-h-[100dvh] animate-page-in bg-base text-text-primary">
+      <div className="pointer-events-none fixed inset-0 z-0">
+        <AnimatedBackground variant="particles" subtle />
+      </div>
+      <div className="relative z-10">
       <HubNav />
       <main className="mx-auto max-w-xl space-y-5 px-4 py-6">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-xl font-extrabold sm:text-2xl">Elonix Hub</h1>
+            <h1 className="text-gradient-anim text-xl font-extrabold sm:text-2xl">Elonix Hub</h1>
             <p className="text-sm text-text-secondary">Community trades, straight from the screen.</p>
           </div>
           <button
             onClick={() => requireAuth() && setComposer(true)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-hover"
+            className="cta-border inline-flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
           >
             <Plus size={16} /> Share a trade
           </button>
         </div>
 
-        {posts.map((p) => (
-          <PostCard
-            key={p.id}
-            post={p}
-            token={token}
-            requireAuth={requireAuth}
-            onDeleted={(id) => setPosts((prev) => prev.filter((x) => x.id !== id))}
-          />
+        {posts.map((p, idx) => (
+          <div key={p.id} className="stagger" style={{ ['--i' as string]: Math.min(idx % 10, 6) }}>
+            <PostCard
+              post={p}
+              token={token}
+              requireAuth={requireAuth}
+              onDeleted={(id) => setPosts((prev) => prev.filter((x) => x.id !== id))}
+            />
+          </div>
         ))}
 
         {(loading || initializing) && (
@@ -163,13 +189,15 @@ export default function ElonixHubPage() {
       {composer && token && (
         <Composer
           token={token}
-          onClose={() => setComposer(false)}
+          initial={prefill}
+          onClose={() => { setComposer(false); setPrefill(undefined); }}
           onCreated={(post) => {
-            setPosts((prev) => [post, ...prev]);
+            setPosts((prev) => [post, ...prev]); setPrefill(undefined);
             setComposer(false);
           }}
         />
       )}
+      </div>
     </div>
   );
 }

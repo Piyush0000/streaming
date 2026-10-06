@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { LogOut, Trash2, Upload } from 'lucide-react';
 import Avatar from '../components/Avatar';
+import AnimatedBackground from '../components/AnimatedBackground';
 import { CHARACTER_LIST } from '../components/characters/characters';
 import ErrorBanner from '../components/ErrorBanner';
 import Spinner from '../components/Spinner';
@@ -155,11 +156,13 @@ export default function SettingsPage() {
   const dirty = !!profile && (displayName.trim() !== (profile.displayName === profile.username ? '' : profile.displayName) || bio.trim() !== profile.bio);
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="relative h-full overflow-hidden">
+      <AnimatedBackground variant="grid-pulse" subtle />
+      <div className="relative z-10 h-full overflow-y-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-8 px-4 py-8">
-        <h1 className="text-xl font-bold text-text-primary">Settings</h1>
+        <h1 className="text-gradient-anim w-fit text-xl font-bold">Settings</h1>
 
-        <section aria-labelledby="profile-heading" className="rounded-xl border border-border bg-panel p-5">
+        <section aria-labelledby="profile-heading" style={{ ['--i' as string]: 0 }} className="stagger glass glass-glow rounded-2xl p-5">
           <h2 id="profile-heading" className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-muted">
             Profile
           </h2>
@@ -292,7 +295,7 @@ export default function SettingsPage() {
           )}
         </section>
 
-        <section aria-labelledby="blocked-heading" className="rounded-xl border border-border bg-panel p-5">
+        <section aria-labelledby="blocked-heading" style={{ ['--i' as string]: 1 }} className="stagger glass glass-glow rounded-2xl p-5">
           <h2 id="blocked-heading" className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-muted">
             Blocked users
           </h2>
@@ -325,7 +328,7 @@ export default function SettingsPage() {
           </ul>
         </section>
 
-        <section aria-labelledby="account-heading" className="rounded-xl border border-border bg-panel p-5">
+        <section aria-labelledby="account-heading" style={{ ['--i' as string]: 2 }} className="stagger glass glass-glow rounded-2xl p-5">
           <h2 id="account-heading" className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-muted">
             Account
           </h2>
@@ -336,6 +339,7 @@ export default function SettingsPage() {
             <LogOut size={16} /> Sign out
           </button>
         </section>
+      </div>
       </div>
     </div>
   );

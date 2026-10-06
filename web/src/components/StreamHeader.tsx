@@ -6,7 +6,9 @@ import Avatar from './Avatar';
 import Modal from './Modal';
 import Spinner from './Spinner';
 import ErrorBanner from './ErrorBanner';
-import Tick from './Tick';
+import Odometer from './Odometer';
+import AvatarStack from './AvatarStack';
+import type { StackPerson } from './AvatarStack';
 import { LiveBadge } from '../pages/LivePage';
 
 export default function StreamHeader({
@@ -21,6 +23,8 @@ export default function StreamHeader({
   canEnd,
   onEnd,
   onLeave,
+  speakerPeople,
+  listenerPeople,
 }: {
   stream: Stream;
   speakingCount: number;
@@ -34,6 +38,9 @@ export default function StreamHeader({
   canEnd: boolean;
   onEnd: () => Promise<void>;
   onLeave: () => void;
+  /** Real people currently on stage / listening (for the avatar stacks). */
+  speakerPeople?: StackPerson[];
+  listenerPeople?: StackPerson[];
 }) {
   const live = stream.status === 'live';
   const [confirmEnd, setConfirmEnd] = useState(false);
@@ -54,7 +61,7 @@ export default function StreamHeader({
   }
 
   return (
-    <header className="flex flex-col gap-2 border-b border-border bg-panel px-4 py-3">
+    <header className="glass relative z-10 flex animate-fade-in flex-col gap-2 border-x-0 border-t-0 px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         {live ? (
           <LiveBadge />
@@ -86,7 +93,7 @@ export default function StreamHeader({
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-secondary">
         <span className="flex min-w-0 items-center gap-2">
-          <Avatar name={stream.hostUsername} size={22} glow={live} />
+          <Avatar name={stream.hostUsername} size={24} glow={live} gradientRing={live} />
           <span className="truncate font-medium text-text-primary">{stream.hostUsername}</span>
           <span className="text-text-muted">host</span>
         </span>
@@ -101,7 +108,7 @@ export default function StreamHeader({
             disabled={followBusy}
             aria-pressed={follow.isFollowing}
             className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors disabled:opacity-60 ${
-              follow.isFollowing ? 'bg-hover text-text-primary hover:bg-border' : 'bg-accent text-white hover:bg-accent-hover'
+              follow.isFollowing ? 'bg-hover text-text-primary hover:bg-border' : 'cta-border text-white'
             }`}
           >
             {followBusy ? <Spinner size={12} /> : follow.isFollowing ? <UserCheck size={13} /> : <UserPlus size={13} />}
@@ -109,8 +116,16 @@ export default function StreamHeader({
           </button>
         )}
         {showCounts && live && (
-          <span className="text-text-muted" aria-live="polite">
-            <Tick value={speakingCount} /> speaking · <Tick value={listeningCount} /> listening
+          <span className="flex items-center gap-2 text-text-muted" aria-live="polite">
+            <AvatarStack people={speakerPeople ?? []} size={22} max={4} label={`${speakingCount} on stage`} />
+            <span className="inline-flex items-center gap-1">
+              <Odometer value={speakingCount} className="text-text-primary" /> speaking
+            </span>
+            <span aria-hidden>·</span>
+            <AvatarStack people={listenerPeople ?? []} size={22} max={4} label={`${listeningCount} listening`} />
+            <span className="inline-flex items-center gap-1">
+              <Odometer value={listeningCount} className="text-text-primary" /> listening
+            </span>
           </span>
         )}
         <Link to="/guidelines" className="ml-auto flex items-center gap-1 text-text-muted hover:text-accent">

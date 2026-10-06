@@ -164,19 +164,22 @@ export async function apiRequest<T>(
   accessToken: string,
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   path: string,
-  body?: unknown
+  body?: unknown,
+  signal?: AbortSignal
 ): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
       method,
+      signal,
       headers: {
         Authorization: `Bearer ${accessToken}`,
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
-  } catch {
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw err;
     throw new ApiError(0, 'network_error', 'Could not reach the server. Check your connection.', {});
   }
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;

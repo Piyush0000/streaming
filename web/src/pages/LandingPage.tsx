@@ -10,6 +10,7 @@ import { CHARACTER_LIST, type PresetId } from '../components/characters/characte
 import ChartBackdrop from '../components/characters/ChartBackdrop';
 import { CandleScene, ShieldScene, StreamScene, VoiceScene } from '../components/characters/Scenes';
 import { useInView } from '../hooks/useReveal';
+import AnimatedBackground from '../components/AnimatedBackground';
 import { useCountUp } from '../hooks/useCountUp';
 
 const FEATURES = [
@@ -93,7 +94,7 @@ const SHOWCASE = [
   {
     scene: <StreamScene />,
     title: 'Go live, screen and all',
-    body: 'Hosts can stream their screen and camera while listeners follow along and chat on the side. Ask to speak and the host can bring you up.',
+    body: 'Hosts can stream their screen while listeners follow along and chat on the side. Ask to speak and the host can bring you up.',
     accent: 'text-sky-400',
   },
   {
@@ -138,14 +139,64 @@ function useParallax<T extends HTMLElement>() {
   return ref;
 }
 
+/** Scroll-driven parallax: writes --py (px scrolled, clamped) on the element, rAF-throttled. CSS applies it with a per-layer --speed. */
+function useScrollParallax<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof window === 'undefined') return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        el.style.setProperty('--py', String(Math.min(1400, Math.max(0, window.scrollY || 0))));
+      });
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+  return ref;
+}
+
+const TICKER_COINS = [CoinGold, CoinViolet, CoinTeal, CoinSilver, CoinGold, CoinViolet, CoinTeal, CoinSilver];
+
+/** Endless strip of generic coin glyphs (decorative; the list is duplicated so the -50% loop is seamless). */
+function CoinTicker() {
+  return (
+    <div aria-hidden className="relative mx-auto max-w-6xl overflow-hidden py-6 [mask-image:linear-gradient(90deg,transparent,#000_12%,#000_88%,transparent)]">
+      <div className="marquee">
+        {[0, 1].map((half) => (
+          <div key={half} className="flex shrink-0 items-center gap-10 pr-10">
+            {TICKER_COINS.map((Coin, i) => (
+              <span key={i} className="opacity-80">
+                <Coin size={34} />
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const navigate = useNavigate();
   const heroRef = useParallax<HTMLDivElement>();
+  const scrollRef = useScrollParallax<HTMLDivElement>();
 
   return (
-    <div className="relative min-h-[100dvh] w-full animate-fade-in overflow-hidden bg-base text-text-primary">
-      {/* Animated background orbs */}
+    <div ref={scrollRef} className="relative min-h-[100dvh] w-full animate-fade-in overflow-hidden bg-base text-text-primary">
       <div className="fixed inset-0 z-0 pointer-events-none">
+        <AnimatedBackground variant="particles" />
+      </div>
+      {/* Animated background orbs (scroll parallax: drift up slower than the page) */}
+      <div className="parallax fixed inset-0 z-0 pointer-events-none" style={{ ['--speed' as string]: -0.12 }}>
         <div className="absolute -left-20 -top-20 w-96 h-96 rounded-full bg-gradient-to-br from-accent/20 via-accent/5 to-transparent blur-3xl animate-orb-drift opacity-60" />
         <div
           className="absolute right-0 top-10 w-80 h-80 rounded-full bg-gradient-to-br from-sky-400/10 via-accent/5 to-transparent blur-3xl animate-orb-drift opacity-50"
@@ -186,7 +237,7 @@ export default function LandingPage() {
           {/* Hero */}
           <div ref={heroRef} className="relative mx-auto max-w-6xl">
             {/* Floating character cluster (large screens) */}
-            <div aria-hidden className="pointer-events-none absolute inset-0 hidden lg:block">
+            <div aria-hidden className="parallax pointer-events-none absolute inset-0 hidden lg:block" style={{ ['--speed' as string]: 0.22 }}>
               {HERO_CLUSTER.map((c, i) => (
                 <div key={i} className={`absolute ${c.className}`}>
                   <div className="ch-drift" style={{ ['--depth' as string]: c.depth }}>
@@ -209,7 +260,7 @@ export default function LandingPage() {
               <h1 className="mb-5 animate-rise-in text-4xl font-extrabold leading-tight sm:text-5xl md:text-6xl" style={stagger(1)}>
                 Where Traders
                 <br />
-                <span className="bg-gradient-to-r from-accent via-sky-400 to-violet-400 bg-clip-text text-transparent">
+                <span className="text-gradient-anim">
                   Talk Live
                 </span>
               </h1>
@@ -223,7 +274,7 @@ export default function LandingPage() {
               <div className="flex animate-rise-in flex-col items-center justify-center gap-3 sm:flex-row" style={stagger(3)}>
                 <button
                   onClick={() => navigate('/login')}
-                  className="btn-shine group inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-7 py-3.5 text-sm font-bold text-white shadow-lg transition-all duration-300 hover:scale-105 hover:bg-accent-hover hover:shadow-accent/30 sm:text-base"
+                  className="cta-border group inline-flex items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-sm font-bold text-white shadow-lg transition-transform duration-300 hover:scale-105 sm:text-base"
                 >
                   <span>Join Elonix</span>
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -247,9 +298,11 @@ export default function LandingPage() {
             </section>
           </div>
 
+          <CoinTicker />
+
           {/* Stats */}
           <section className="mx-auto max-w-3xl pb-16">
-            <Reveal className="grid grid-cols-3 gap-4 rounded-2xl border border-border bg-panel/50 px-4 py-6">
+            <Reveal className="glass grid grid-cols-3 gap-4 rounded-2xl px-4 py-6">
               {STATS.map((s) => (
                 <Stat key={s.label} {...s} />
               ))}
@@ -262,7 +315,7 @@ export default function LandingPage() {
               {FEATURES.map(({ icon: Icon, iconClass, title, sub }, i) => (
                 <Reveal key={title} delay={i * 90} className="h-full">
                 <div
-                  className="group h-full rounded-2xl border border-border bg-panel/60 p-5 transition-all duration-300 hover:scale-105 hover:border-accent/30"
+                  className="group hover-tilt glass glass-glow h-full rounded-2xl p-5"
                 >
                   <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft">
                     <Icon className={`h-5 w-5 ${iconClass}`} />
@@ -302,7 +355,7 @@ export default function LandingPage() {
               {CHARACTER_LIST.map((c, i) => (
                 <li key={c.id}>
                   <Reveal delay={i * 50} className="h-full">
-                    <div className="group flex h-full flex-col items-center rounded-2xl border border-border bg-panel/60 p-4 text-center transition-all duration-300 hover:-translate-y-1 hover:border-accent/40">
+                    <div className="group hover-tilt glass glass-glow flex h-full flex-col items-center rounded-2xl p-4 text-center">
                       <div className="mb-3 transition-transform duration-300 group-hover:scale-110">
                         <Avatar name={c.label} preset={c.id} size={80} />
                       </div>
@@ -339,7 +392,7 @@ export default function LandingPage() {
                 </p>
                 <button
                   onClick={() => navigate('/login')}
-                  className="btn-shine inline-flex items-center gap-2 rounded-xl bg-accent px-7 py-3.5 text-sm font-bold text-white shadow-lg transition-all duration-300 hover:scale-105 hover:bg-accent-hover sm:text-base"
+                  className="cta-border inline-flex items-center gap-2 rounded-xl px-7 py-3.5 text-sm font-bold text-white shadow-lg transition-transform duration-300 hover:scale-105 sm:text-base"
                 >
                   Get Started
                   <ArrowRight className="h-4 w-4" />

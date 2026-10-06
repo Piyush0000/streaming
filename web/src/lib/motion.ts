@@ -23,3 +23,15 @@ export function safeSet(key: string, value: string): void {
     /* storage blocked / full: nothing to do */
   }
 }
+
+/** Sets html[data-tab-hidden] so CSS can pause infinite animations while the tab is in the background. */
+export function installVisibilityPause(): void {
+  try {
+    if (typeof document === 'undefined') return;
+    const apply = () => document.documentElement.setAttribute('data-tab-hidden', document.hidden ? 'true' : 'false');
+    apply();
+    document.addEventListener('visibilitychange', apply);
+  } catch {
+    /* non-critical */
+  }
+}

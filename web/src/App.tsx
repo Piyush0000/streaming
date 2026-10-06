@@ -12,6 +12,11 @@ import StreamPage from './pages/StreamPage';
 import GuidelinesPage from './pages/GuidelinesPage';
 import InvitePage from './pages/InvitePage';
 const ElonixHubPage = lazy(() => import('./pages/ElonixHubPage'));
+const HubCommunityPage = lazy(() => import('./pages/HubCommunityPage'));
+const HubPostPage = lazy(() => import('./pages/HubPostPage'));
+const HubProfilePage = lazy(() => import('./pages/HubProfilePage'));
+const HubSubmitPage = lazy(() => import('./pages/HubSubmitPage'));
+const HubSearchPage = lazy(() => import('./pages/HubSearchPage'));
 const TradePage = lazy(() => import('./pages/TradePage'));
 import SettingsPage from './pages/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -91,20 +96,32 @@ function AppRoutes() {
           </RedirectIfAuthed>
         }
       />
-      <Route
-        path="/elonixhub"
-        element={
-          <Suspense
-            fallback={
-              <div className="h-[100dvh] w-full bg-base">
-                <FullPageSpinner label="Loadingâ€¦" />
-              </div>
-            }
-          >
-            <ElonixHubPage />
-          </Suspense>
-        }
-      />
+      {(
+        [
+          ['/elonixhub', ElonixHubPage],
+          ['/elonixhub/c/:slug', HubCommunityPage],
+          ['/elonixhub/post/:id', HubPostPage],
+          ['/elonixhub/u/:username', HubProfilePage],
+          ['/elonixhub/submit', HubSubmitPage],
+          ['/elonixhub/search', HubSearchPage],
+        ] as const
+      ).map(([path, Page]) => (
+        <Route
+          key={path}
+          path={path}
+          element={
+            <Suspense
+              fallback={
+                <div className="h-[100dvh] w-full bg-base">
+                  <FullPageSpinner label="Loading…" />
+                </div>
+              }
+            >
+              <Page />
+            </Suspense>
+          }
+        />
+      ))}
       <Route
         path="/login"
         element={

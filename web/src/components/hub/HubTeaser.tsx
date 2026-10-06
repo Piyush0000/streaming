@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Heart, ImageIcon } from 'lucide-react';
-import { hubApi, HubPost } from '../../lib/hub';
+import { ArrowBigUp, ArrowRight, Heart, ImageIcon } from 'lucide-react';
+import { hubApi, hubPath, HubPost } from '../../lib/hub';
 import { colorForName, cx, initials } from '../../lib/format';
 import PostBadges from './PostBadges';
 
@@ -18,9 +18,9 @@ export default function HubTeaser() {
   useEffect(() => {
     let cancelled = false;
     hubApi
-      .listPosts(null, null, 3)
-      .then((res) => {
-        if (!cancelled) setLive(res.posts.slice(0, 3));
+      .listRecent(3)
+      .then((posts) => {
+        if (!cancelled) setLive(posts.slice(0, 3));
       })
       .catch(() => {
         /* silently hide the live strip */
@@ -86,15 +86,21 @@ export default function HubTeaser() {
             {live.map((p) => (
               <button
                 key={p.id}
-                onClick={() => navigate('/elonixhub')}
+                onClick={() => navigate(p.id ? hubPath.post(p.id) : '/elonixhub')}
                 className="overflow-hidden rounded-2xl border border-border bg-panel text-left transition-colors hover:border-accent/40"
               >
-                <img src={p.imageUrl} alt={p.caption || `Trade by ${p.author.username}`} loading="lazy" className="aspect-video w-full bg-base object-cover" />
+                {p.imageUrl ? (
+                  <img src={p.imageUrl} alt={p.title || p.caption || `Post by ${p.author.username}`} loading="lazy" className="aspect-video w-full bg-base object-cover" />
+                ) : (
+                  <div className="flex aspect-video items-center bg-gradient-to-br from-accent/15 via-base to-violet-400/10 p-4">
+                    <p className="line-clamp-3 text-sm font-semibold text-text-secondary">{p.title}</p>
+                  </div>
+                )}
                 <div className="space-y-2 p-3">
                   <div className="flex items-center justify-between gap-2 text-sm">
-                    <span className="truncate font-semibold">{p.author.username}</span>
+                    <span className="truncate font-semibold">{p.imageUrl && p.title ? p.title : p.author.username}</span>
                     <span className="flex shrink-0 items-center gap-1 text-text-secondary">
-                      <Heart className="h-4 w-4" /> {p.likeCount}
+                      <ArrowBigUp className="h-4 w-4" /> {p.score}
                     </span>
                   </div>
                   <PostBadges post={p} />

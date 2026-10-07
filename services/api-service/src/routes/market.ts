@@ -3,6 +3,7 @@ import { logger } from '../logger';
 import { hitRateLimit } from '../rateLimit';
 import { mapSignals } from '../marketData';
 import { fetchJson, getTickers } from '../tickerSource';
+import { computeMovers, getAllSymbols, getOverview, querySymbols, SymbolSort } from '../marketAll';
 
 export const marketRouter = Router();
 
@@ -64,5 +65,47 @@ marketRouter.get('/signals', async (req: Request, res: Response) => {
       return respond(signalsCache.raw, signalsCache.at, true);
     }
     return res.status(503).json({ error: 'signals_unavailable' });
+  }
+});
+
+// ---- all USDT symbols (one cached Binance all-symbols call, 5s) ----
+const SORTS = new Set(['volume', 'gainers', 'losers', 'name']);
+
+marketRouter.get('/symbols', async (req: Request, res: Response) => {
+  if (!(await allowed(req, res))) return;
+  const sort = typeof req.query.sort === 'string' && req.query.sort ? req.query.sort : 'volume';
+  if (!SORTS.has(sort)) return res.status(400).json({ error: 'invalid_sort' });
+  let limit = 100;
+  if (typeof req.query.limit === 'string' && req.query.limit) {
+    const n = Number(req.query.limit);
+    if (!Number.isInteger(n) || n < 1 || n > 200) return res.status(400).json({ error: 'invalid_limit' });
+    limit = n;
+  }
+  try {
+    const snap = await getAllSymbols();
+    const q = typeof req.query.q === 'string' ? req.query.q : '';
+    const r = querySymbols(snap.rows, { sort: sort as SymbolSort, q, limit });
+    return res.json({ updatedAt: new Date(snap.at).toISOString(), stale: snap.stale, count: r.count, symbols: r.symbols });
+  } catch {
+    return res.status(503).json({ error: 'market_unavailable' });
+  }
+});
+
+marketRouter.get('/movers', async (req: Request, res: Response) => {
+  if (!(await allowed(req, res))) return;
+  try {
+    const snap = await getAllSymbols();
+    return res.json({ updatedAt: new Date(snap.at).toISOString(), stale: snap.stale, ...computeMovers(snap.rows) });
+  } catch {
+    return res.status(503).json({ error: 'market_unavailable' });
+  }
+});
+
+marketRouter.get('/overview', async (req: Request, res: Response) => {
+  if (!(await allowed(req, res))) return;
+  try {
+    return res.json(await getOverview());
+  } catch {
+    return res.status(503).json({ error: 'market_unavailable' });
   }
 });

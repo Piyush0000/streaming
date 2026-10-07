@@ -53,3 +53,21 @@ export async function hitRateLimit(key: string, limit: number, windowSec: number
     return { allowed: true, retryAfterMs: 0 };
   }
 }
+
+/** Express helper: per-IP fixed-window limit (X-Real-IP set by the gateway). Sends the 429 itself; returns false when blocked. */
+export async function allowIp(
+  req: import('express').Request,
+  res: import('express').Response,
+  scope: string,
+  limit: number,
+  windowSec = 60
+): Promise<boolean> {
+  const hdr = req.headers['x-real-ip'];
+  const ip = (typeof hdr === 'string' && hdr) || req.ip || 'unknown';
+  const rl = await hitRateLimit(`rl:${scope}:${ip}`, limit, windowSec);
+  if (rl.allowed) return true;
+  const sec = Math.ceil(rl.retryAfterMs / 1000);
+  res.setHeader('Retry-After', String(sec));
+  res.status(429).json({ error: 'rate_limited', message: `Too many requests. Try again in ${sec}s.`, retryAfterMs: rl.retryAfterMs });
+  return false;
+}

@@ -6,6 +6,7 @@ import { cx } from '../../lib/format';
 import { useHubAuth } from '../../hooks/useHubAuth';
 import Skeleton from '../Skeleton';
 import CreateCommunityModal from './CreateCommunityModal';
+import MarketPulse from './MarketPulse';
 import { useHubCommunities } from './hubCommunities';
 
 export function CommunityDot({ slug, size = 28 }: { slug: string; size?: number }) {
@@ -107,6 +108,7 @@ export function HubSidebar() {
 
   return (
     <aside aria-label="Sidebar" className="hidden space-y-4 lg:block">
+      <MarketPulse />
       <section className="glass rounded-2xl p-4">
         <h2 className="mb-3 flex items-center gap-2 text-sm font-bold">
           <Users size={15} className="text-accent" /> Communities

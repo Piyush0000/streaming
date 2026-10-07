@@ -12,6 +12,7 @@ import { usersRouter } from './routes/users';
 import { hubRouter } from './routes/hub';
 import { profilesRouter } from './routes/profiles';
 import { marketRouter } from './routes/market';
+import { newsRouter } from './routes/news';
 import { paperRouter } from './routes/paper';
 import { activityRouter } from './routes/activity';
 import { internalRouter } from './routes/internal';
@@ -50,6 +51,7 @@ app.use('/users', usersRouter);
 app.use('/hub', hubRouter);
 // Public market data (Binance tickers + Elonix signals); per-IP rate limited inside the router.
 app.use('/market', marketRouter);
+app.use('/news', newsRouter);
 // Paper trading (virtual funds, real prices); auth + rate limits inside the router.
 app.use('/paper', paperRouter);
 // Join-activity feed (who just joined + from where); auth + rate limits inside the router.

@@ -9,13 +9,13 @@ import { parseBinanceTickers, TICKER_SYMBOLS, Ticker } from './marketData';
 const TICKER_TTL_MS = 10_000;
 const TICKER_FETCH_TIMEOUT_MS = 3000;
 const TICKER_MAX_STALE_MS = 5 * 60_000;
-const BINANCE_HOSTS = ['https://api.binance.com', 'https://api1.binance.com', 'https://api2.binance.com'];
+export const BINANCE_HOSTS = ['https://api.binance.com', 'https://api1.binance.com', 'https://api2.binance.com'];
 
 export async function fetchJson(url: string, timeoutMs: number): Promise<unknown> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: ctrl.signal, headers: { accept: 'application/json' } });
+    const res = await fetch(url, { signal: ctrl.signal, headers: { accept: 'application/json', 'user-agent': 'Mozilla/5.0 (compatible; ElonixHubMarket/1.0)' } });
     if (!res.ok) throw new Error(`upstream ${new URL(url).host} responded ${res.status}`);
     return await res.json();
   } finally {

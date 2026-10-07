@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Search } from 'lucide-react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { ArrowLeft, LineChart, Newspaper, Plus, Search, Users } from 'lucide-react';
 import { useSession } from '../../context/SessionContext';
 import { hubPath } from '../../lib/hub';
+import { hubMarketPath } from '../../lib/hubMarket';
+import { cx } from '../../lib/format';
 
 export default function HubNav() {
   const navigate = useNavigate();
@@ -69,6 +71,27 @@ export default function HubNav() {
             </button>
           ))}
       </div>
+      <nav aria-label="Hub sections" className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-3 pb-2 sm:px-4">
+        {[
+          { to: hubPath.home, label: 'Feed', icon: Users, end: true },
+          { to: hubMarketPath.news, label: 'News', icon: Newspaper, end: false },
+          { to: hubMarketPath.markets, label: 'Markets', icon: LineChart, end: false },
+        ].map(({ to, label, icon: Icon, end }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={end}
+            className={({ isActive }) =>
+              cx(
+                'inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                isActive ? 'bg-accent/15 text-accent' : 'text-text-secondary hover:bg-hover hover:text-text-primary'
+              )
+            }
+          >
+            <Icon size={13} aria-hidden /> {label}
+          </NavLink>
+        ))}
+      </nav>
     </header>
   );
 }

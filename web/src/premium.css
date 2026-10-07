@@ -494,3 +494,49 @@ html[data-tab-hidden='true'] *::after {
 @media (prefers-reduced-motion: reduce) {
   .cta-border::before { background: linear-gradient(90deg, #3b82f6, #8b5cf6); inset: 0; }
 }
+
+/* ---- Hub market: ticker tape, headline rotator, row flash, gauge ---- */
+.tape-wrap { overflow: hidden; }
+.tape-track {
+  display: flex;
+  width: max-content;
+  animation: marquee var(--tape-dur, 80s) linear infinite;
+  will-change: transform;
+}
+.tape-wrap:hover .tape-track,
+.tape-wrap:focus-within .tape-track,
+.tape-wrap[data-paused='true'] .tape-track { animation-play-state: paused; }
+.tape-fade {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+}
+.headline-fade { animation: headline-in 400ms var(--ease-out, ease-out) backwards; }
+@keyframes headline-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.flash-ov {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  animation: row-flash 900ms ease-out;
+}
+.flash-ov[data-dir='up'] { background: rgba(34, 197, 94, 0.22); }
+.flash-ov[data-dir='down'] { background: rgba(239, 68, 68, 0.22); }
+@keyframes row-flash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.gauge-arc { transition: stroke-dashoffset 900ms cubic-bezier(0.22, 1, 0.36, 1); }
+.gauge-needle { transition: transform 900ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tape-wrap { overflow-x: auto; }
+  .tape-track { animation: none !important; }
+  .tape-dup { display: none !important; }
+  .tape-fade { -webkit-mask-image: none; mask-image: none; }
+  .headline-fade { animation: none !important; }
+  .flash-ov { display: none !important; }
+  .gauge-arc, .gauge-needle { transition: none !important; }
+}

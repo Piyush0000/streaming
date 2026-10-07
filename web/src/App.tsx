@@ -17,6 +17,8 @@ const HubPostPage = lazy(() => import('./pages/HubPostPage'));
 const HubProfilePage = lazy(() => import('./pages/HubProfilePage'));
 const HubSubmitPage = lazy(() => import('./pages/HubSubmitPage'));
 const HubSearchPage = lazy(() => import('./pages/HubSearchPage'));
+const HubNewsPage = lazy(() => import('./pages/HubNewsPage'));
+const HubMarketsPage = lazy(() => import('./pages/HubMarketsPage'));
 const TradePage = lazy(() => import('./pages/TradePage'));
 import SettingsPage from './pages/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -104,6 +106,8 @@ function AppRoutes() {
           ['/elonixhub/u/:username', HubProfilePage],
           ['/elonixhub/submit', HubSubmitPage],
           ['/elonixhub/search', HubSearchPage],
+          ['/elonixhub/news', HubNewsPage],
+          ['/elonixhub/markets', HubMarketsPage],
         ] as const
       ).map(([path, Page]) => (
         <Route

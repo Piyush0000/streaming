@@ -10,7 +10,7 @@ import { RouteErrorBoundary } from '../ErrorBoundary';
 export default function HubShell({ children, sidebar = true, wide = false }: { children: ReactNode; sidebar?: boolean; wide?: boolean }) {
   return (
     <HubCommunitiesProvider>
-      <div className="relative min-h-[100dvh] animate-page-in bg-base text-text-primary">
+      <div className="hub-light relative min-h-[100dvh] animate-page-in bg-base text-text-primary">
         <div className="pointer-events-none fixed inset-0 z-0">
           <AnimatedBackground variant="particles" subtle />
         </div>

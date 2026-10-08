@@ -540,3 +540,23 @@ html[data-tab-hidden='true'] *::after {
   .flash-ov { display: none !important; }
   .gauge-arc, .gauge-needle { transition: none !important; }
 }
+
+/* ---- Elonix Hub: a brighter dark theme (lighter surfaces, near-white text) ---- */
+.hub-light {
+  background-color: #0e1a31;
+  color: #ffffff;
+}
+.hub-light .text-text-primary { color: #ffffff; }
+.hub-light .text-text-secondary { color: #e2e8f4; }
+.hub-light .text-text-muted { color: #c3cfe3; }
+.hub-light .bg-base { background-color: #0e1a31; }
+.hub-light .bg-panel { background-color: #17274a; }
+.hub-light .bg-hover, .hub-light .hover\:bg-hover:hover { background-color: #22355e; }
+.hub-light .border-border { border-color: #35496f; }
+.hub-light .glass {
+  background: linear-gradient(180deg, rgba(36, 54, 94, 0.78), rgba(24, 40, 74, 0.72));
+  border-color: rgba(190, 208, 238, 0.28);
+}
+.hub-light input::placeholder, .hub-light textarea::placeholder { color: #a9b8d2; }
+.hub-light a:not([class*="text-"]) { color: inherit; }
+

@@ -15,9 +15,9 @@ export default {
           soft: '#15223d',
         },
         text: {
-          primary: '#e6e8ec',
-          secondary: '#93a4c3',
-          muted: '#64748b',
+          primary: '#f8fafc',
+          secondary: '#cbd5e8',
+          muted: '#9fb0cb',
         },
         success: '#22c55e',
         danger: '#ef4444',

@@ -1,4 +1,6 @@
 import type { Channel, MessageAttachment } from '@streaming/shared-types';
+import type { RefreshOutcome } from './sessionCore';
+import { rateLimitMessage, SHARED_ERRORS } from './errorMessages';
 
 const AUTH_BASE_URL = import.meta.env.VITE_AUTH_BASE_URL ?? '/api/auth';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
@@ -61,6 +63,36 @@ export async function refreshTokens(refreshToken: string): Promise<{ accessToken
     body: JSON.stringify({ refreshToken }),
   });
   return parseJsonOrThrow(res);
+}
+
+/**
+ * Refresh used by the session manager. Distinguishes a DEFINITIVE rejection
+ * (401/400/403: the refresh token is expired, revoked or unknown) from a
+ * transient failure (offline, timeout, 5xx, 429), so a flaky network never
+ * signs the user out.
+ */
+export async function requestRefresh(refreshToken: string): Promise<RefreshOutcome> {
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), 30_000) : null;
+  try {
+    const res = await fetch(`${AUTH_BASE_URL}/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+      signal: controller?.signal,
+    });
+    if (res.status === 400 || res.status === 401 || res.status === 403) return { kind: 'invalid' };
+    if (!res.ok) return { kind: 'transient' };
+    const body = (await res.json().catch(() => null)) as { accessToken?: unknown; refreshToken?: unknown } | null;
+    if (body && typeof body.accessToken === 'string' && typeof body.refreshToken === 'string') {
+      return { kind: 'ok', accessToken: body.accessToken, refreshToken: body.refreshToken };
+    }
+    return { kind: 'transient' };
+  } catch {
+    return { kind: 'transient' };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 export async function listChannels(accessToken: string): Promise<Channel[]> {
@@ -134,31 +166,7 @@ export class ApiError extends Error {
   }
 }
 
-const FRIENDLY_ERRORS: Record<string, string> = {
-  stream_not_found: 'This stream could not be found.',
-  stream_already_ended: 'This stream has already ended.',
-  stream_ended: 'This stream has ended.',
-  forbidden: 'You do not have permission to do that.',
-  internal_error: 'Something went wrong on our side. Please try again.',
-  user_not_found: 'That user no longer exists.',
-  channel_not_found: "This channel doesn't exist, or you don't have access to it.",
-  unsupported_channel_kind: 'Stream channels are managed from the Live section, not here.',
-  channel_name_taken: 'A channel with that name already exists.',
-  owner_cannot_leave: 'The owner cannot leave the channel. Delete it instead.',
-  cannot_remove_owner: 'The channel owner cannot be removed.',
-  cannot_change_owner: "The owner's role cannot be changed.",
-  member_not_found: 'That user is not a member of this channel.',
-  already_member: 'That user is already a member.',
-  channel_full: 'This channel has reached its member limit.',
-  too_many_invites: 'This channel has too many active invites. Revoke one first.',
-  invite_not_found: 'This invite link is not valid.',
-  invite_expired: 'This invite link has expired.',
-  invite_revoked: 'This invite link was revoked.',
-  invite_exhausted: 'This invite link has reached its maximum number of uses.',
-  rate_limited: 'You are doing that too fast. Please wait a moment.',
-  invalid_token: 'Your session has expired. Please sign in again.',
-  missing_token: 'Your session has expired. Please sign in again.',
-};
+const FRIENDLY_ERRORS: Record<string, string> = SHARED_ERRORS;
 
 export async function apiRequest<T>(
   accessToken: string,
@@ -180,15 +188,17 @@ export async function apiRequest<T>(
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err;
-    throw new ApiError(0, 'network_error', 'Could not reach the server. Check your connection.', {});
+    throw new ApiError(0, 'network_error', SHARED_ERRORS.network_error, {});
   }
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
     const code = typeof json.error === 'string' ? json.error : `http_${res.status}`;
+    const retryAfterMs = typeof json.retryAfterMs === 'number' ? json.retryAfterMs : undefined;
     const message =
+      (code === 'rate_limited' && retryAfterMs ? rateLimitMessage(retryAfterMs) : '') ||
       (typeof json.message === 'string' && json.message) ||
       FRIENDLY_ERRORS[code] ||
-      `Request failed (${res.status}).`;
+      (res.status >= 500 ? SHARED_ERRORS.service_unavailable : `Request failed (${res.status}).`);
     throw new ApiError(res.status, code, message, json);
   }
   return json as T;

@@ -43,8 +43,8 @@ import MessageList from '../components/MessageList';
 import type { MessageAction } from '../components/MessageList';
 import MessageComposer from '../components/MessageComposer';
 import ErrorBanner from '../components/ErrorBanner';
+import JoinStatusBanner from '../components/JoinStatusBanner';
 import { StreamPageSkeleton } from '../components/Skeleton';
-import Dots from '../components/Dots';
 import AnimatedBackground from '../components/AnimatedBackground';
 import Confetti from '../components/Confetti';
 import { ReactionBar, ReactionLayer, useReactions } from '../components/Reactions';
@@ -68,7 +68,7 @@ interface RemovedNotice {
 
 export default function StreamPage() {
   const { streamId } = useParams<{ streamId: string }>();
-  const { session, logout } = useSession();
+  const { session } = useSession();
   const { showToast } = useToast();
   const { refresh: refreshLive } = useLiveStreams();
   const navigate = useNavigate();
@@ -140,7 +140,8 @@ export default function StreamPage() {
       onWarning: (w) => setWarning(w),
       onRemoved: (p) => handleRemoved({ action: p.action, reason: p.reason, fromChat: true }),
       onEnded: markEnded,
-      onAuthError: logout,
+      // Token problems are handled by the session manager (refresh, or one friendly sign-out toast).
+      onAuthError: () => {},
       onAccessDenied: () => setAccessDenied(true),
       onChannelRemoved: (p) => handleChannelRemoved(p, { current: p.channelId === streamId, fallbackPath: '/live' }),
     },
@@ -476,24 +477,15 @@ export default function StreamPage() {
             </div>
           )}
 
-          {isLive && media.status === 'connecting' && (
-            <p className="flex items-center gap-1.5 text-sm text-text-secondary">
-              Joining the room <Dots />
-            </p>
-          )}
-
-          {isLive && media.status === 'error' && media.joinError && (
-            <div className="flex flex-col gap-2">
-              <ErrorBanner message={media.joinError} />
-              {!media.joinFatal && (
-                <button
-                  onClick={media.reconnect}
-                  className="w-fit rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-white hover:bg-accent-hover"
-                >
-                  {media.joinError.includes('full') ? 'Try again' : 'Reconnect'}
-                </button>
-              )}
-            </div>
+          {isLive && (
+            <JoinStatusBanner
+              status={media.status}
+              error={media.joinError}
+              kind={media.joinKind}
+              fatal={media.joinFatal}
+              retryAt={media.retryAt}
+              onRetry={media.reconnect}
+            />
           )}
 
           {media.mediaError && <ErrorBanner message={media.mediaError} onDismiss={media.dismissMediaError} />}
@@ -576,6 +568,11 @@ export default function StreamPage() {
 
         {tab === 'chat' && (
           <div role="tabpanel" id="panel-chat" className="flex min-h-0 flex-1 animate-fade-in flex-col">
+            {chat.reconnecting && !chat.chatError && (
+              <p role="status" className="px-4 pt-2 text-xs text-text-muted">
+                Reconnecting to chat…
+              </p>
+            )}
             {chat.chatError && (
               <div className="px-4 pt-3">
                 <ErrorBanner message={chat.chatError} onDismiss={chat.dismissChatError} />

@@ -12,6 +12,9 @@ import {
 } from '../lib/media';
 import { getChannel, isChannelGone } from '../lib/channels';
 import { useSession } from '../context/SessionContext';
+import { classifyJoinFailure, OFFLINE_MESSAGE, SESSION_EXPIRED_MESSAGE } from '../lib/errorMessages';
+import { sessionManager } from '../lib/sessionManager';
+import { backoffDelayMs } from '../lib/reconnect';
 import { useChannels } from '../context/ChannelsContext';
 import { useToast } from '../context/ToastContext';
 import { useJoinToasts } from '../hooks/useJoinToasts';
@@ -33,7 +36,7 @@ const screenShareSupported =
   typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia;
 
 export default function ChannelPage() {
-  const { session, logout } = useSession();
+  const { session } = useSession();
   const { channelId } = useParams<{ channelId: string }>();
   const navigate = useNavigate();
   const { refresh: refreshChannels } = useChannels();
@@ -51,6 +54,7 @@ export default function ChannelPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [chatReconnecting, setChatReconnecting] = useState(false);
   const [rateLimitedUntil, setRateLimitedUntil] = useState<number | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
@@ -122,6 +126,10 @@ export default function ChannelPage() {
           }
         }
       },
+      onConnectionState: (state) => {
+        setChatReconnecting(state === 'reconnecting');
+        if (state === 'connected') setChatError(null);
+      },
       onError: (payload) => {
         if (payload.code === 'not_member' && (!payload.channelId || payload.channelId === channelId)) {
           setMessagesLoading(false);
@@ -132,9 +140,9 @@ export default function ChannelPage() {
           setRateLimitedUntil(Date.now() + (payload.retryAfterMs ?? 3000));
           return;
         }
-        setChatError(payload.message);
+        // Auth problems are handled by the session manager (refresh, or one friendly sign-out); never show raw codes.
+        setChatError(/token/i.test(payload.message) ? SESSION_EXPIRED_MESSAGE : payload.message);
         setMessagesLoading(false);
-        if (payload.message.toLowerCase().includes('token')) logout();
       },
       onChannelRemoved: (payload) => {
         handleChannelRemoved(payload, { current: payload.channelId === channelId, fallbackPath: '/channels' });
@@ -148,7 +156,7 @@ export default function ChannelPage() {
       socket.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, channelId, denied]);
+  }, [session?.user.id, channelId, denied]);
 
   // Leave voice automatically when navigating away from the channel entirely.
   useEffect(() => {
@@ -231,10 +239,11 @@ export default function ChannelPage() {
     setMuted(false);
   }
 
-  async function handleJoinVoice() {
-    if (!session || !channelId) return;
-    setVoiceError(null);
-    setVoiceState('connecting');
+  const rejoinsRef = useRef<number[]>([]);
+
+  /** One join attempt. Resolves to null on success, or the error (state cleaned up) so the caller can classify / retry. */
+  async function joinVoiceAttempt(): Promise<unknown> {
+    if (!session || !channelId) return null;
     try {
       const client = await VoiceClient.connect(session.accessToken, {
         onRemoteStream: (peer) => {
@@ -286,7 +295,16 @@ export default function ChannelPage() {
         onDisconnected: () => {
           voiceClientRef.current = null;
           resetVoiceUi();
-          setVoiceError('Lost the connection to the voice room. Join again to reconnect.');
+          // Rejoin automatically (network switch / brief outage); give up after 3 drops in 30s.
+          const now = Date.now();
+          rejoinsRef.current = rejoinsRef.current.filter((t) => now - t < 30_000);
+          if (rejoinsRef.current.length < 3) {
+            rejoinsRef.current.push(now);
+            setVoiceError(OFFLINE_MESSAGE);
+            void handleJoinVoice();
+          } else {
+            setVoiceError('Lost the connection to the voice room. Press Join to reconnect.');
+          }
         },
       });
       voiceClientRef.current = client;
@@ -294,13 +312,39 @@ export default function ChannelPage() {
       setPeerUserIds(new Map(existing.map((p) => [p.peerId, p.userId])));
       setMuted(false);
       setVoiceState('connected');
+      return null;
     } catch (err) {
       // Release the half-open signaling socket (e.g. after room_full / forbidden).
       const failed = voiceClientRef.current;
       voiceClientRef.current = null;
       void failed?.leave();
+      return err;
+    }
+  }
+
+  async function handleJoinVoice() {
+    if (!session || !channelId || voiceState === 'connecting') return;
+    setVoiceError(null);
+    setVoiceState('connecting');
+    let authRetried = false;
+    for (let n = 0; ; n++) {
+      const err = await joinVoiceAttempt();
+      if (err === null) return;
+      const failure = classifyJoinFailure(err);
+      if (failure.kind === 'auth' && !authRetried) {
+        authRetried = true;
+        await sessionManager.refreshNow({ staleAccessToken: sessionManager.getAccessToken() });
+        continue;
+      }
+      if (failure.kind === 'transient' && n < 3) {
+        setVoiceError(OFFLINE_MESSAGE);
+        await new Promise((r) => setTimeout(r, backoffDelayMs(n + 1)));
+        setVoiceError(null);
+        continue;
+      }
       setVoiceError(describeMediaJoinError(err));
       setVoiceState('error');
+      return;
     }
   }
 
@@ -395,6 +439,12 @@ export default function ChannelPage() {
             </button>
           )}
         </div>
+
+        {chatReconnecting && !chatError && (
+          <p role="status" className="px-4 pt-2 text-xs text-text-muted">
+            Reconnecting to chat…
+          </p>
+        )}
 
         {chatError && (
           <div className="px-4 pt-3">

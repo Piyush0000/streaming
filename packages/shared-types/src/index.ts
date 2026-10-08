@@ -450,6 +450,7 @@ export interface StreamEndedPayload {
 
 export type MediaClientRequestType =
   | 'join-room'
+  | 'ping'
   | 'get-router-rtp-capabilities'
   | 'create-webrtc-transport'
   | 'connect-webrtc-transport'

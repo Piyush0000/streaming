@@ -22,7 +22,7 @@ const ChannelsContext = createContext<ChannelsContextValue | undefined>(undefine
  * focus (so removals/deletes made elsewhere show up without a reload).
  */
 export function ChannelsProvider({ children }: { children: ReactNode }) {
-  const { session, logout } = useSession();
+  const { session } = useSession();
   const token = session?.accessToken;
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,8 +42,8 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       if (seq !== requestSeq.current) return;
       const message = (err as Error).message;
+      // Auth failures are handled centrally (lib/sessionManager: refresh, or one friendly sign-out).
       setError(message);
-      if (message.toLowerCase().includes('token')) logout();
     } finally {
       if (seq === requestSeq.current) setLoading(false);
     }

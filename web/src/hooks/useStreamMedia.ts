@@ -8,6 +8,9 @@ import {
   RemotePeerVideo,
 } from '../lib/media';
 import { useJoinToasts } from './useJoinToasts';
+import { sessionManager } from '../lib/sessionManager';
+import { classifyJoinFailure, OFFLINE_MESSAGE, type JoinFailureKind } from '../lib/errorMessages';
+import { backoffDelayMs } from '../lib/reconnect';
 import { playJoinSound, playLeaveSound, playSpeakRequestSound } from '../lib/sounds';
 
 export interface PeerState {
@@ -26,7 +29,11 @@ export interface Participant {
   isSelf: boolean;
 }
 
-export type JoinStatus = 'idle' | 'connecting' | 'connected' | 'error';
+export type JoinStatus = 'idle' | 'connecting' | 'reconnecting' | 'connected' | 'error';
+
+/** Auto-retries for a join that never succeeded / for a connection that dropped mid-stream. */
+const MAX_JOIN_RETRIES = 3;
+const MAX_RECONNECTS = 6;
 export type MicState = 'off' | 'starting' | 'live' | 'error';
 export type SpeakRequestState = 'none' | 'pending';
 
@@ -95,6 +102,15 @@ export function useStreamMedia({
   const [joinError, setJoinError] = useState<string | null>(null);
   /** True when retrying can't help (no access / banned / ended), so the UI shouldn't offer Reconnect. */
   const [joinFatal, setJoinFatal] = useState(false);
+  /** Why the join failed (drives the Retry label / countdown in the UI). */
+  const [joinKind, setJoinKind] = useState<JoinFailureKind | null>(null);
+  const [retryAt, setRetryAt] = useState<number | null>(null);
+  const autoRef = useRef<{ n: number; wasConnected: boolean; authRetried: boolean; timer: ReturnType<typeof setTimeout> | null }>({
+    n: 0,
+    wasConnected: false,
+    authRetried: false,
+    timer: null,
+  });
   const [speakCooldownUntil, setSpeakCooldownUntil] = useState<number | null>(null);
   const [attempt, setAttempt] = useState(0);
 
@@ -175,9 +191,24 @@ export function useStreamMedia({
     let client: VoiceClient | null = null;
     removedRef.current = false;
 
-    setStatus('connecting');
-    setJoinError(null);
+    const auto = autoRef.current;
+    if (auto.timer) clearTimeout(auto.timer);
+    auto.timer = null;
+    setStatus(auto.n > 0 ? 'reconnecting' : 'connecting');
+    if (auto.n === 0) setJoinError(null);
     setJoinFatal(false);
+    setJoinKind(null);
+    setRetryAt(null);
+
+    /** Schedule the next automatic attempt with backoff + jitter (re-runs this effect). */
+    const scheduleRetry = (message: string) => {
+      auto.n += 1;
+      const delay = backoffDelayMs(auto.n);
+      setStatus('reconnecting');
+      setJoinError(message);
+      setRetryAt(Date.now() + delay);
+      auto.timer = setTimeout(() => setAttempt((a) => a + 1), delay);
+    };
 
     (async () => {
       try {
@@ -272,8 +303,10 @@ export function useStreamMedia({
           onStreamEnded: () => eventsRef.current.onEnded(),
           onDisconnected: () => {
             if (cancelled || removedRef.current) return;
-            setStatus('error');
-            setJoinError('Lost the connection to the stream room.');
+            // Dropped mid-stream (network switch / brief outage / token-expiry close): rejoin automatically.
+            auto.wasConnected = false;
+            auto.n = 0;
+            scheduleRetry(OFFLINE_MESSAGE);
           },
           onLocalProducerClosed: () => {
             setMicState('off');
@@ -307,19 +340,52 @@ export function useStreamMedia({
         setPendingRequests(result.pendingSpeakRequests);
         setSpeakRequest('none');
         setStatus('connected');
+        setJoinError(null);
+        auto.n = 0;
+        auto.authRetried = false;
+        auto.wasConnected = true;
 
         if (canSpeak(result.you.role)) void startMic();
       } catch (err) {
         if (cancelled) return;
+        // Release a half-open socket so a retry starts clean (no ghost peer / duplicate join).
+        const half = client;
+        client = null;
+        if (clientRef.current === half) clientRef.current = null;
+        void half?.leave();
+
+        const failure = classifyJoinFailure(err);
+        if (failure.kind === 'auth' && !auto.authRetried) {
+          // Token rejected: refresh once, then retry immediately with the new one.
+          auto.authRetried = true;
+          const fresh = await sessionManager.refreshNow({ staleAccessToken: sessionManager.getAccessToken() });
+          if (cancelled) return;
+          if (fresh || sessionManager.getSession()) {
+            auto.timer = setTimeout(() => setAttempt((a) => a + 1), fresh ? 0 : 3000);
+            return;
+          }
+          // Session is gone: SessionWatcher shows the single friendly sign-out toast.
+        }
+        if (failure.kind === 'transient' && auto.n < (auto.wasConnected ? MAX_RECONNECTS : MAX_JOIN_RETRIES)) {
+          scheduleRetry(OFFLINE_MESSAGE);
+          return;
+        }
         setStatus('error');
-        setJoinError(describeMediaJoinError(err) || 'Could not join the stream room.');
-        const code = err instanceof MediaRequestError ? err.code : undefined;
-        setJoinFatal(code === 'forbidden' || code === 'banned' || code === 'stream_ended');
+        setJoinKind(failure.kind);
+        setJoinError(
+          failure.kind === 'transient'
+            ? "Can't reach Elonix right now. Check your connection and press Retry."
+            : describeMediaJoinError(err) || failure.message
+        );
+        if (failure.kind === 'rate_limited' && failure.retryAfterMs) setRetryAt(Date.now() + failure.retryAfterMs);
+        setJoinFatal(failure.kind === 'fatal');
       }
     })();
 
     return () => {
       cancelled = true;
+      if (auto.timer) clearTimeout(auto.timer);
+      auto.timer = null;
       const c = client;
       client = null;
       if (clientRef.current === c) clientRef.current = null;
@@ -340,7 +406,23 @@ export function useStreamMedia({
     };
   }, [enabled, token, streamId, attempt, startMic, stopMic]);
 
-  const reconnect = useCallback(() => setAttempt((a) => a + 1), []);
+  const reconnect = useCallback(() => {
+    autoRef.current.n = 0;
+    autoRef.current.authRetried = false;
+    setAttempt((a) => a + 1);
+  }, []);
+
+  // Back online: don't wait out the backoff timer.
+  useEffect(() => {
+    if (status !== 'reconnecting' && status !== 'error') return;
+    const onOnline = () => {
+      if (autoRef.current.timer) clearTimeout(autoRef.current.timer);
+      autoRef.current.timer = null;
+      setAttempt((a) => a + 1);
+    };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [status]);
 
   // ---- speak requests ---------------------------------------------------
 
@@ -482,6 +564,8 @@ export function useStreamMedia({
     status,
     joinError,
     joinFatal,
+    joinKind,
+    retryAt,
     reconnect,
     me,
     myRole,

@@ -459,6 +459,9 @@ async function handleStreamEvent(event: StreamEvent) {
   }
 }
 
+/** WebSocket ping cadence; a connection that misses one full cycle is terminated. */
+const HEARTBEAT_MS = 25_000;
+
 export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws/media' });
 
@@ -481,7 +484,29 @@ export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
       return;
     }
 
+    // Keepalive: ping every HEARTBEAT_MS and terminate sockets that never answer (half-open
+    // mobile / NAT connections), so ghost peers are removed promptly via the 'close' handler.
+    let alive = true;
+    ws.on('pong', () => {
+      alive = true;
+    });
+    const heartbeat = setInterval(() => {
+      if (!alive) {
+        logger.info({ peerId: conn.peerId, userId: conn.userId }, 'media socket missed heartbeat; terminating');
+        ws.terminate();
+        return;
+      }
+      alive = false;
+      try {
+        ws.ping();
+      } catch {
+        /* socket already closing */
+      }
+    }, HEARTBEAT_MS);
+    heartbeat.unref?.();
+
     ws.on('message', async (raw) => {
+      alive = true;
       let req: MediaRequest;
       try {
         req = JSON.parse(raw.toString());
@@ -494,6 +519,12 @@ export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
           case 'join-room': {
             const result = await handleJoinRoom(conn, req.payload as JoinRoomPayload);
             send(ws, ok(req.id, result));
+            break;
+          }
+
+          case 'ping': {
+            // Application-level keepalive: lets the browser (which cannot see WS ping frames) detect a dead link.
+            send(ws, ok(req.id, { t: Date.now() }));
             break;
           }
 
@@ -811,6 +842,7 @@ export function createMediaWsServer(httpServer: HttpServer): WebSocketServer {
     });
 
     ws.on('close', () => {
+      clearInterval(heartbeat);
       logger.info({ peerId: conn.peerId }, 'media socket disconnected');
       leaveRoom(conn);
       connectionsByPeerId.delete(conn.peerId);

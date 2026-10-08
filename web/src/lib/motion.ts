@@ -31,6 +31,10 @@ export function installVisibilityPause(): void {
     const apply = () => document.documentElement.setAttribute('data-tab-hidden', document.hidden ? 'true' : 'false');
     apply();
     document.addEventListener('visibilitychange', apply);
+    // Safety: a missed visibilitychange (bfcache restore, popup/redirect sign-in flows) must never leave
+    // the flag stuck on, because paused entrance animations keep whole pages at opacity 0 (blank screen).
+    window.addEventListener('focus', apply);
+    window.addEventListener('pageshow', apply);
   } catch {
     /* non-critical */
   }

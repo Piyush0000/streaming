@@ -1,4 +1,5 @@
 import { ApiError } from './api';
+import { SHARED_ERRORS } from './errorMessages';
 
 const HUB_BASE = `${import.meta.env.VITE_API_BASE_URL ?? '/api'}/hub`;
 
@@ -100,16 +101,7 @@ export interface PostQuery {
   limit?: number;
 }
 
-const HUB_ERRORS: Record<string, string> = {
-  unsupported_image: 'That image type is not supported. Use PNG, JPG, WebP or GIF.',
-  rate_limited: 'You are doing that too fast. Please wait a moment.',
-  payload_too_large: 'That image is too large (max 5MB).',
-  invalid_token: 'Your session has expired. Please sign in again.',
-  missing_token: 'Your session has expired. Please sign in again.',
-  forbidden: 'You do not have permission to do that.',
-  not_found: 'That no longer exists.',
-  slug_taken: 'That community name is already taken.',
-};
+const HUB_ERRORS: Record<string, string> = SHARED_ERRORS;
 
 async function hubRequest<T>(token: string | null, method: string, path: string, body?: unknown): Promise<T> {
   const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
@@ -124,7 +116,7 @@ async function hubRequest<T>(token: string | null, method: string, path: string,
       body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
     });
   } catch {
-    throw new ApiError(0, 'network_error', 'Could not reach the server. Check your connection.', {});
+    throw new ApiError(0, 'network_error', SHARED_ERRORS.network_error, {});
   }
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {

@@ -24,7 +24,15 @@ import type {
   MediaErrorCode,
 } from '@streaming/shared-types';
 
+import { sessionManager } from './sessionManager';
+import { classifyJoinFailure, roomFullMessage, SHARED_ERRORS } from './errorMessages';
+
 const MEDIA_WS_URL = import.meta.env.VITE_MEDIA_WS_URL ?? '/ws/media';
+
+/** Media-service closes the socket with this code when the token was rejected at connect. */
+const WS_CLOSE_UNAUTHORIZED = 4001;
+const KEEPALIVE_INTERVAL_MS = 20_000;
+const KEEPALIVE_TIMEOUT_MS = 10_000;
 
 function resolveWsUrl(accessToken: string): string {
   if (MEDIA_WS_URL.startsWith('/')) {
@@ -54,20 +62,23 @@ export function describeMediaJoinError(err: unknown): string {
   if (err instanceof MediaRequestError) {
     switch (err.code) {
       case 'room_full':
-        return err.capacity ? `This room is full (${err.capacity.current}/${err.capacity.max}).` : 'This room is full.';
+        return roomFullMessage(err.capacity);
       case 'forbidden':
         return "You don't have access to this room. If it's a private channel, you need to be a member.";
       case 'access_unavailable':
-        return "We couldn't verify your access right now. Please try again in a moment.";
+        return SHARED_ERRORS.access_unavailable;
       case 'banned':
-        return 'You are banned from this stream.';
+        return SHARED_ERRORS.banned;
       case 'stream_ended':
-        return 'This stream has ended.';
+        return SHARED_ERRORS.stream_ended;
       default:
         break;
     }
   }
-  return (err as Error)?.message || 'Could not join the room.';
+  // Network / timeout / permission / unknown failures get friendly text, never raw error strings.
+  const failure = classifyJoinFailure(err);
+  if (failure.kind === 'other') return (err as Error)?.message && !/^request .* timed out$/.test((err as Error).message) ? (err as Error).message : failure.message;
+  return failure.message;
 }
 
 export interface RemotePeerAudio {
@@ -148,15 +159,49 @@ export class VoiceClient {
   private constructor(ws: WebSocket, private callbacks: VoiceClientCallbacks) {
     this.ws = ws;
     this.ws.addEventListener('message', (event) => this.handleMessage(event));
-    this.ws.addEventListener('close', () => {
-      for (const pending of this.pendingRequests.values()) pending.reject(new Error('connection closed'));
+    this.ws.addEventListener('close', (event) => {
+      this.closeCode = event.code;
+      if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
+      this.keepAliveTimer = undefined;
+      const err = this.closedError();
+      for (const pending of this.pendingRequests.values()) pending.reject(err);
       this.pendingRequests.clear();
       if (!this.leaving) this.callbacks.onDisconnected?.();
     });
+    this.keepAliveTimer = setInterval(() => this.keepAlive(), KEEPALIVE_INTERVAL_MS);
   }
 
+  private closeCode?: number;
+  private keepAliveTimer?: ReturnType<typeof setInterval>;
+
+  private closedError(): Error {
+    if (this.closeCode === WS_CLOSE_UNAUTHORIZED) {
+      return new MediaRequestError(SHARED_ERRORS.unauthorized, { code: 'unauthorized' as MediaErrorCode });
+    }
+    return new Error('connection closed');
+  }
+
+  /** Browsers cannot see WS ping frames, so probe with an app-level ping; a dead link is closed (-> onDisconnected -> reconnect). */
+  private keepAlive() {
+    if (this.ws.readyState !== WebSocket.OPEN || this.leaving) return;
+    const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('keepalive timed out')), KEEPALIVE_TIMEOUT_MS));
+    // Any reply (even an "unknown request" error from an older server) proves the link is alive; only silence counts.
+    const probe = this.request('ping').catch((err) => {
+      if (!(err instanceof MediaRequestError)) throw err;
+    });
+    Promise.race([probe, timeout]).catch(() => {
+      if (!this.leaving && this.ws.readyState === WebSocket.OPEN) this.ws.close();
+    });
+  }
+
+  /**
+   * Opens the signaling socket. `accessToken` is only a fallback: the LATEST token is
+   * used (refreshing first when it is about to expire), so reconnects after a token
+   * rotation never send a stale one.
+   */
   static async connect(accessToken: string, callbacks: VoiceClientCallbacks): Promise<VoiceClient> {
-    const ws = new WebSocket(resolveWsUrl(accessToken));
+    const token = (await sessionManager.ensureFresh().catch(() => null)) ?? sessionManager.getAccessToken() ?? accessToken;
+    const ws = new WebSocket(resolveWsUrl(token));
     await new Promise<void>((resolve, reject) => {
       ws.addEventListener('open', () => resolve(), { once: true });
       ws.addEventListener('error', () => reject(new Error('media socket failed to connect')), { once: true });
@@ -245,6 +290,10 @@ export class VoiceClient {
   private request<T>(type: MediaRequest['type'], payload?: unknown): Promise<T> {
     const id = crypto.randomUUID();
     return new Promise<T>((resolve, reject) => {
+      if (this.ws.readyState !== WebSocket.OPEN) {
+        reject(this.closedError());
+        return;
+      }
       this.pendingRequests.set(id, { resolve, reject });
       this.ws.send(JSON.stringify({ id, type, payload } satisfies MediaRequest));
       setTimeout(() => {
@@ -550,6 +599,8 @@ export class VoiceClient {
     this.localStream?.getTracks().forEach((t) => t.stop());
     this.sendTransport?.close();
     this.recvTransport?.close();
+    if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
+    this.keepAliveTimer = undefined;
     this.ws.close();
   }
 }

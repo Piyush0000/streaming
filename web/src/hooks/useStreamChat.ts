@@ -37,6 +37,9 @@ export function useStreamChat({
   initialMuted: boolean;
   events: StreamChatEvents;
 }) {
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
+  const hasToken = !!token;
   const eventsRef = useRef(events);
   eventsRef.current = events;
   const socketRef = useRef<Socket | null>(null);
@@ -45,6 +48,7 @@ export function useStreamChat({
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
   const [muted, setMuted] = useState(initialMuted);
   const [rateLimitedUntil, setRateLimitedUntil] = useState<number | null>(null);
 
@@ -53,12 +57,16 @@ export function useStreamChat({
   }, [initialMuted, streamId]);
 
   useEffect(() => {
-    if (!enabled || !token || !streamId) return;
+    if (!enabled || !hasToken || !streamId) return;
     setMessages([]);
     setLoading(true);
     setChatError(null);
 
-    const socket = connectChat(token, {
+    const socket = connectChat(tokenRef.current ?? '', {
+      onConnectionState: (state) => {
+        setReconnecting(state === 'reconnecting');
+        if (state === 'connected') setChatError(null);
+      },
       onHistory: (payload) => {
         if (payload.channelId !== streamId) return;
         setMessages(payload.messages);
@@ -122,7 +130,8 @@ export function useStreamChat({
       socket.disconnect();
       if (socketRef.current === socket) socketRef.current = null;
     };
-  }, [enabled, token, streamId, selfUserId]);
+    // The token is read through tokenRef (and the socket's auth callback), so a token refresh must NOT tear the socket down.
+  }, [enabled, hasToken, streamId, selfUserId]);
 
   const send = useCallback(
     (content: string, attachment?: MessageAttachment | null) => {
@@ -142,6 +151,7 @@ export function useStreamChat({
     messages,
     loading,
     chatError,
+    reconnecting,
     dismissChatError: () => setChatError(null),
     muted,
     rateLimitedUntil,

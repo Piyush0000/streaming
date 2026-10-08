@@ -25,6 +25,8 @@ import NotFoundPage from './pages/NotFoundPage';
 import { BlocksProvider } from './hooks/useBlocks';
 import { UserCardProvider } from './components/UserCard';
 import { ToastProvider } from './context/ToastContext';
+import SessionWatcher from './components/SessionWatcher';
+import { RouteErrorBoundary } from './components/ErrorBoundary';
 import {
   clearPostLoginPath,
   DEFAULT_POST_LOGIN_PATH,
@@ -117,7 +119,7 @@ function AppRoutes() {
             <Suspense
               fallback={
                 <div className="h-[100dvh] w-full bg-base">
-                  <FullPageSpinner label="Loading…" />
+                  <FullPageSpinner label="Loadingâ€¦" />
                 </div>
               }
             >
@@ -166,11 +168,14 @@ export default function App() {
   return (
     <SessionProvider>
       <ToastProvider>
-        <BlocksProvider>
-          <UserCardProvider>
-            <AppRoutes />
-          </UserCardProvider>
-        </BlocksProvider>
+        <SessionWatcher />
+        <RouteErrorBoundary name="app">
+          <BlocksProvider>
+            <UserCardProvider>
+              <AppRoutes />
+            </UserCardProvider>
+          </BlocksProvider>
+        </RouteErrorBoundary>
       </ToastProvider>
     </SessionProvider>
   );

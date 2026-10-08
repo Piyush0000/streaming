@@ -162,9 +162,9 @@ export default function PostCard({ post: initial, token, requireAuth, onDeleted,
     'inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-text-secondary transition-colors hover:bg-hover hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
 
   const title = detail ? (
-    <h1 className="break-words text-lg font-bold leading-snug sm:text-xl">{post.title}</h1>
+    <h1 className="break-words text-lg font-bold leading-snug text-text-primary sm:text-xl">{post.title}</h1>
   ) : (
-    <h3 className={cx('break-words font-bold leading-snug', compact ? 'text-sm' : 'text-base')}>
+    <h3 className={cx('break-words font-bold leading-snug text-text-primary', compact ? 'text-sm' : 'text-base')}>
       <Link to={hubPath.post(post.id)} className="hover:text-accent focus-visible:outline-none focus-visible:underline">
         {post.title || 'Untitled'}
       </Link>

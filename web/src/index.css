@@ -9,6 +9,10 @@
     height: 100%;
   }
 
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-text-primary;
+  }
+
   body {
     @apply bg-base text-text-primary antialiased;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';

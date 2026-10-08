@@ -79,7 +79,7 @@ function renderBlock(b: Block, i: number): ReactNode {
 function Markdown({ text, className }: { text: string; className?: string }) {
   const blocks = useMemo(() => parseMarkdown(text), [text]);
   if (blocks.length === 0) return null;
-  return <div className={cx('space-y-2 break-words text-sm leading-relaxed', className)}>{blocks.map(renderBlock)}</div>;
+  return <div className={cx('space-y-2 break-words text-sm leading-relaxed text-text-primary', className)}>{blocks.map(renderBlock)}</div>;
 }
 
 export default memo(Markdown);

@@ -1,6 +1,7 @@
 import { DragEvent, useEffect, useRef, useState } from 'react';
 import { ImagePlus, X } from 'lucide-react';
 import { cx } from '../../lib/format';
+import { guessImageType, shrinkImage } from '../../lib/imageResize';
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
@@ -10,6 +11,7 @@ export default function ImageDrop({ file, onFile }: { file: File | null; onFile:
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -22,18 +24,28 @@ export default function ImageDrop({ file, onFile }: { file: File | null; onFile:
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  function pick(f: File | undefined) {
+  async function pick(f: File | undefined) {
     if (!f) return;
-    if (!IMAGE_TYPES.includes(f.type)) return setError('Unsupported file type. Use PNG, JPG, WebP or GIF.');
-    if (f.size > MAX_IMAGE_BYTES) return setError('Image is too large. Max size is 5MB.');
+    const type = guessImageType(f.name, f.type);
+    if (!IMAGE_TYPES.includes(type)) return setError('Unsupported file type. Use PNG, JPG, WebP or GIF.');
     setError(null);
-    onFile(f);
+    let chosen: File | null = f.size > MAX_IMAGE_BYTES ? null : f;
+    if (!chosen) {
+      // Phone photos are usually bigger than the limit: shrink them instead of refusing.
+      setBusy(true);
+      chosen = await shrinkImage(f.type ? f : new File([f], f.name, { type }), MAX_IMAGE_BYTES);
+      setBusy(false);
+      if (!chosen) return setError('Image is too large. Max size is 5MB.');
+    } else if (!f.type) {
+      chosen = new File([f], f.name, { type });
+    }
+    onFile(chosen);
   }
 
   function onDrop(e: DragEvent) {
     e.preventDefault();
     setDragging(false);
-    pick(e.dataTransfer.files?.[0]);
+    void pick(e.dataTransfer.files?.[0]);
   }
 
   return (
@@ -45,7 +57,7 @@ export default function ImageDrop({ file, onFile }: { file: File | null; onFile:
             type="button"
             onClick={() => onFile(null)}
             aria-label="Remove image"
-            className="absolute right-2 top-2 rounded-full bg-black/70 p-1.5 text-white hover:bg-black"
+            className="tap absolute right-2 top-2 inline-flex items-center justify-center rounded-full bg-black/70 p-1.5 text-white hover:bg-black"
           >
             <X size={14} />
           </button>
@@ -74,8 +86,8 @@ export default function ImageDrop({ file, onFile }: { file: File | null; onFile:
           )}
         >
           <ImagePlus className="text-accent" />
-          <p className="text-sm font-semibold">Drop a screenshot or click to choose</p>
-          <p className="text-xs text-text-muted">PNG, JPG, WebP or GIF, up to 5MB</p>
+          <p className="text-sm font-semibold">{busy ? 'Preparing image…' : 'Click or tap to choose a screenshot'}</p>
+          <p className="text-xs text-text-muted">PNG, JPG, WebP or GIF, up to 5MB (large photos are shrunk automatically)</p>
         </div>
       )}
       <input
@@ -84,7 +96,7 @@ export default function ImageDrop({ file, onFile }: { file: File | null; onFile:
         accept={IMAGE_TYPES.join(',')}
         hidden
         onChange={(e) => {
-          pick(e.target.files?.[0]);
+          void pick(e.target.files?.[0]);
           e.target.value = '';
         }}
       />

@@ -14,8 +14,12 @@ export async function copyText(text: string): Promise<boolean> {
     el.setAttribute('readonly', '');
     el.style.position = 'fixed';
     el.style.opacity = '0';
+    el.style.left = '-9999px';
+    el.style.fontSize = '16px'; // avoids the iOS focus-zoom
     document.body.appendChild(el);
+    el.focus({ preventScroll: true });
     el.select();
+    el.setSelectionRange(0, text.length); // iOS / in-app webviews ignore select() alone
     const ok = document.execCommand('copy');
     document.body.removeChild(el);
     return ok;

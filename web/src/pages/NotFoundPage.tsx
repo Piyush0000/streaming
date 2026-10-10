@@ -13,7 +13,7 @@ export default function NotFoundPage() {
       >
         <Link
           to="/"
-          className="inline-block rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
+          className="tap inline-flex items-center rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
         >
           Back to Elonix
         </Link>

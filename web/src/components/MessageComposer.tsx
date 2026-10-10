@@ -71,7 +71,7 @@ export default function MessageComposer({
   }
 
   return (
-    <div className="glass border-x-0 border-b-0 px-4 py-3">
+    <div className="glass border-x-0 border-b-0 px-3 pt-3 sm:px-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}>
       {uploadError && (
         <div className="mb-2">
           <ErrorBanner message={uploadError} onDismiss={() => setUploadError(null)} />
@@ -83,7 +83,7 @@ export default function MessageComposer({
           You're sending messages too fast. You can send again in {secondsLeft}s.
         </p>
       )}
-      <form onSubmit={handleSubmit} className="flex items-center gap-2">
+      <form onSubmit={handleSubmit} className="flex items-center gap-1.5 sm:gap-2">
         <input
           ref={fileInputRef}
           type="file"
@@ -95,11 +95,11 @@ export default function MessageComposer({
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled || uploading || limited}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60 md:h-10 md:w-10"
           aria-label="Attach file"
           title="Attach file"
         >
-          <Paperclip size={16} />
+          <Paperclip size={18} />
         </button>
         <input
           value={draft}
@@ -107,15 +107,15 @@ export default function MessageComposer({
           placeholder={uploading ? 'Uploading…' : placeholder}
           disabled={disabled || uploading}
           aria-label={placeholder}
-          className="flex-1 rounded-lg border border-border bg-base px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted transition-shadow focus:border-accent focus:shadow-[0_0_0_3px_rgba(59,130,246,0.18)] focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
+          enterKeyHint="send" autoComplete="off" className="min-h-[44px] min-w-0 flex-1 rounded-lg border border-border bg-base px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted transition-shadow focus:border-accent focus:shadow-[0_0_0_3px_rgba(59,130,246,0.18)] focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
         />
         <button
           type="submit"
           disabled={disabled || uploading || limited || !draft.trim()}
-          className="send-fly flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-violet-500 text-white shadow-[0_0_14px_-2px_rgba(59,130,246,0.6)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+          className="send-fly flex h-11 w-11 shrink-0 md:h-10 md:w-10 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-violet-500 text-white shadow-[0_0_14px_-2px_rgba(59,130,246,0.6)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
           aria-label="Send message"
         >
-          <Send size={16} />
+          <Send size={18} />
         </button>
       </form>
     </div>

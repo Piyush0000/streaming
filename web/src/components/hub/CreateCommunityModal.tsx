@@ -100,7 +100,7 @@ export default function CreateCommunityModal({
           <button
             type="submit"
             disabled={busy || !slugOk || !nameOk}
-            className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
+            className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-white disabled:opacity-60"
           >
             {busy && <Loader2 size={14} className="animate-spin" />} Create
           </button>

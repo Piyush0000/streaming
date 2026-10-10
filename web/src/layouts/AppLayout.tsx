@@ -26,10 +26,10 @@ export default function AppLayout() {
           <Sidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
 
           <div className="flex min-w-0 flex-1 flex-col">
-            <div className="flex h-12 shrink-0 items-center border-b border-border px-3 md:hidden">
+            <div className="pt-safe box-content flex h-12 shrink-0 items-center border-b border-border px-3 md:hidden">
               <button
                 onClick={() => setMobileOpen(true)}
-                className="rounded p-1.5 text-text-secondary hover:bg-hover hover:text-text-primary"
+                className="-ml-1 inline-flex h-11 w-11 items-center justify-center rounded-lg text-text-secondary hover:bg-hover hover:text-text-primary"
                 aria-label="Open sidebar"
               >
                 <Menu size={20} />

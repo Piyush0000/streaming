@@ -29,7 +29,7 @@ export function JoinButton({ community, size = 'sm' }: { community: HubCommunity
       onClick={() => void toggleJoin(community.slug)}
       aria-pressed={community.joined}
       className={cx(
-        'shrink-0 rounded-full font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+        'tap inline-flex shrink-0 items-center justify-center rounded-full font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
         size === 'sm' ? 'px-3 py-1 text-xs' : 'px-5 py-2 text-sm',
         community.joined ? 'border border-border text-text-secondary hover:border-danger/50 hover:text-danger' : 'bg-accent text-white hover:bg-accent-hover'
       )}
@@ -44,7 +44,7 @@ function CommunityRows({ list }: { list: HubCommunity[] }) {
     <ul className="space-y-1">
       {list.map((c) => (
         <li key={c.slug} className="flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-hover/60">
-          <Link to={hubPath.community(c.slug)} className="flex min-w-0 flex-1 items-center gap-2">
+          <Link to={hubPath.community(c.slug)} className="tap flex min-w-0 flex-1 items-center gap-2">
             <CommunityDot slug={c.slug} />
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold">c/{c.slug}</span>
@@ -75,7 +75,7 @@ function CommunitiesBody({ onCreate }: { onCreate: () => void }) {
     return (
       <div className="text-center text-xs text-text-muted">
         Couldn't load communities.{' '}
-        <button type="button" onClick={reload} className="inline-flex items-center gap-1 font-semibold text-accent">
+        <button type="button" onClick={reload} className="tap inline-flex items-center gap-1 font-semibold text-accent">
           <RefreshCw size={11} /> Retry
         </button>
       </div>
@@ -89,7 +89,7 @@ function CommunitiesBody({ onCreate }: { onCreate: () => void }) {
       <button
         type="button"
         onClick={onCreate}
-        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-xs font-semibold text-text-secondary hover:border-accent/50 hover:text-text-primary"
+        className="tap mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-xs font-semibold text-text-secondary hover:border-accent/50 hover:text-text-primary"
       >
         <Plus size={14} /> Create community
       </button>
@@ -123,7 +123,7 @@ export function HubSidebar() {
           <ol className="space-y-2">
             {trending.map((c, i) => (
               <li key={c.slug}>
-                <Link to={hubPath.community(c.slug)} className="flex items-center gap-2 rounded-lg px-1 py-1 text-sm hover:bg-hover/60">
+                <Link to={hubPath.community(c.slug)} className="tap flex items-center gap-2 rounded-lg px-1 py-1 text-sm hover:bg-hover/60">
                   <span className="w-4 text-xs font-bold text-text-muted">{i + 1}</span>
                   <CommunityDot slug={c.slug} size={22} />
                   <span className="min-w-0 flex-1 truncate font-semibold">c/{c.slug}</span>
@@ -174,7 +174,7 @@ export function MobileCommunities() {
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="glass flex w-full items-center justify-between rounded-2xl px-4 py-2.5 text-sm font-semibold"
+        className="glass tap flex w-full items-center justify-between rounded-2xl px-4 py-2.5 text-sm font-semibold"
       >
         <span className="flex items-center gap-2">
           <Users size={15} className="text-accent" /> Communities

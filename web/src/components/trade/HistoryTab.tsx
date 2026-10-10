@@ -110,7 +110,7 @@ export default function HistoryTab({ token, refreshKey }: { token: string; refre
               <button
                 type="button"
                 onClick={() => share(t)}
-                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 font-medium text-accent hover:bg-accent-soft"
+                className="tap inline-flex items-center gap-1.5 rounded-md px-3 py-1 font-medium text-accent hover:bg-accent-soft"
               >
                 <Share2 size={12} /> Share to Elonix Hub
               </button>
@@ -123,7 +123,7 @@ export default function HistoryTab({ token, refreshKey }: { token: string; refre
           type="button"
           onClick={() => void more()}
           disabled={loadingMore}
-          className="self-center rounded-lg border border-border px-4 py-2 text-sm text-text-secondary hover:bg-hover disabled:opacity-50"
+          className="tap self-center rounded-lg border border-border px-5 py-2 text-sm text-text-secondary hover:bg-hover disabled:opacity-60"
         >
           {loadingMore ? 'Loading…' : 'Load more'}
         </button>

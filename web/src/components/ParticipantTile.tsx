@@ -52,7 +52,7 @@ export default function ParticipantTile({
       className={cx(
         'group/tile stage-tile relative aspect-video w-full cursor-pointer select-none overflow-hidden rounded-2xl border-2 transition-colors duration-base',
         speaking && 'tile-speaking',
-        tile.offline && 'opacity-60'
+        tile.offline && 'opacity-80'
       )}
     >
       {hasVideo ? (
@@ -112,7 +112,7 @@ export default function ParticipantTile({
           aria-label={pinned ? `Unpin ${label}` : `Pin ${label}`}
           title={pinned ? 'Unpin' : 'Pin'}
           className={cx(
-            'flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white transition-opacity hover:bg-black/75 focus-visible:opacity-100',
+            'flex h-11 w-11 items-center justify-center rounded-full bg-black/60 md:h-9 md:w-9 text-white transition-opacity hover:bg-black/75 focus-visible:opacity-100',
             pinned ? 'opacity-100' : 'opacity-0 group-hover/tile:opacity-100 [@media(hover:none)]:opacity-100'
           )}
         >

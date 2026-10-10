@@ -84,6 +84,17 @@ export default function MessageList({
     }
   }, [messages]);
 
+  // Soft keyboard / rotation resizes the list: keep the latest message in view when we were at the bottom.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      if (stuckToBottomRef.current) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [loading]);
+
   function jumpToLatest() {
     const el = containerRef.current;
     if (!el) return;
@@ -127,7 +138,7 @@ export default function MessageList({
       {showJumpToLatest && (
         <button
           onClick={jumpToLatest}
-          className="absolute bottom-3 left-1/2 -translate-x-1/2 animate-pop-in rounded-full bg-accent px-4 py-1.5 text-xs font-semibold text-white shadow-lg transition-colors hover:bg-accent-hover"
+          className="absolute bottom-3 left-1/2 min-h-[44px] -translate-x-1/2 animate-pop-in rounded-full bg-accent px-5 py-1.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-accent-hover"
         >
           Jump to latest
         </button>
@@ -148,16 +159,16 @@ function MessageMenu({ actions, label }: { actions: MessageAction[]; label: stri
 
   useEffect(() => {
     if (!open) return;
-    function onDown(e: MouseEvent) {
+    function onDown(e: PointerEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false);
     }
-    document.addEventListener('mousedown', onDown);
+    document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey);
     return () => {
-      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('pointerdown', onDown);
       document.removeEventListener('keydown', onKey);
     };
   }, [open]);
@@ -166,7 +177,7 @@ function MessageMenu({ actions, label }: { actions: MessageAction[]; label: stri
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="rounded p-1 text-text-muted hover:bg-hover hover:text-text-primary"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-hover hover:text-text-primary max-md:h-11 max-md:w-11"
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -186,7 +197,7 @@ function MessageMenu({ actions, label }: { actions: MessageAction[]; label: stri
                 setOpen(false);
                 a.onSelect();
               }}
-              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-hover ${a.danger ? 'text-danger' : 'text-text-primary'}`}
+              className={`block min-h-[44px] w-full px-4 py-2 text-left text-sm hover:bg-hover md:min-h-0 md:px-3 md:py-1.5 md:text-xs ${a.danger ? 'text-danger' : 'text-text-primary'}`}
             >
               {a.label}
             </button>
@@ -229,7 +240,7 @@ function MessageGroupRow({
           <button
             type="button"
             onClick={() => openUserCard(group.userId, group.username)}
-            className={`text-sm font-semibold hover:underline ${isSelf ? 'text-accent' : 'text-text-primary'}`}
+            className={`-my-1.5 py-1.5 text-sm font-semibold hover:underline ${isSelf ? 'text-accent' : 'text-text-primary'}`}
           >
             {shownName}
           </button>
@@ -251,7 +262,7 @@ function MessageGroupRow({
                   </div>
                 )}
                 {m.content && (
-                  <p className={`whitespace-pre-wrap break-words ${actions.length > 0 ? 'pr-7' : ''} text-sm leading-relaxed text-text-primary/90`}>
+                  <p className={`whitespace-pre-wrap break-words ${actions.length > 0 ? 'pr-10' : ''} text-sm leading-relaxed text-text-primary`}>
                     {m.content}
                   </p>
                 )}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Channel, CreateChannelRequest } from '@streaming/shared-types';
 import { Compass, LineChart, Hash, HelpCircle, Lock, LogOut, Plus, Radio, Settings, Volume2, X } from 'lucide-react';
@@ -46,6 +46,16 @@ export default function Sidebar({
     onCloseMobile();
   }
 
+  // Drawer: Escape closes it (hardware keyboards / Android back-gesture helpers).
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseMobile();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mobileOpen, onCloseMobile]);
+
   const textChannels = channels.filter((c) => c.kind !== 'voice');
   const voiceChannels = channels.filter((c) => c.kind === 'voice');
 
@@ -62,24 +72,24 @@ export default function Sidebar({
 
       <aside
         className={cx(
-          'fixed inset-y-0 left-0 z-40 flex w-[260px] shrink-0 flex-col border-r border-border bg-panel transition-transform duration-base ease-out-expo md:static md:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 flex w-[min(300px,86vw)] shrink-0 flex-col md:w-[260px] border-r border-border bg-panel transition-transform duration-base ease-out-expo md:static md:translate-x-0',
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        <div className="flex h-14 items-center justify-between border-b border-border px-4">
+        <div className="pt-safe flex h-14 box-content items-center justify-between border-b border-border px-4">
           <span className="truncate text-sm font-bold tracking-wide text-text-primary">
             ELON<span className="text-accent">IX</span>
           </span>
           <button
             onClick={onCloseMobile}
-            className="rounded p-1 text-text-secondary hover:bg-hover md:hidden"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-text-secondary hover:bg-hover hover:text-text-primary md:hidden"
             aria-label="Close sidebar"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-2 py-3">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-2 py-3">
           <div className="mb-3" data-tour="live">
             <div className="flex items-center justify-between px-2 pb-1">
               <button
@@ -87,7 +97,7 @@ export default function Sidebar({
                   navigate('/live');
                   onCloseMobile();
                 }}
-                className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted hover:text-text-primary"
+                className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted max-md:min-h-[44px] hover:text-text-primary"
               >
                 <span className="h-2 w-2 rounded-full bg-danger" aria-hidden />
                 Live
@@ -102,7 +112,7 @@ export default function Sidebar({
                   live.openGoLive();
                   onCloseMobile();
                 }}
-                className="flex items-center gap-1 rounded-md bg-danger/15 px-2 py-0.5 text-[11px] font-semibold text-danger transition-colors hover:bg-danger/25"
+                className="flex items-center gap-1 rounded-md bg-danger/15 px-2.5 py-1 text-xs font-semibold text-danger transition-colors max-md:min-h-[44px] max-md:px-3 hover:bg-danger/25"
               >
                 <Radio size={12} /> Go live
               </button>
@@ -122,7 +132,7 @@ export default function Sidebar({
                       }}
                       data-active={s.id === streamId}
                       className={cx(
-                        'nav-item glow-row flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
+                        'nav-item glow-row flex w-full items-center gap-2 max-md:min-h-[44px] rounded-md px-2 py-1.5 text-left text-sm transition-colors',
                         s.id === streamId
                           ? 'bg-accent-soft text-text-primary'
                           : 'text-text-secondary hover:bg-hover hover:text-text-primary'
@@ -162,7 +172,7 @@ export default function Sidebar({
                 onCloseMobile();
               }}
               data-active={location.pathname === '/trade'}
-              className="nav-item flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-text-secondary transition-colors hover:bg-hover hover:text-text-primary data-[active=true]:bg-accent-soft data-[active=true]:text-text-primary"
+              className="nav-item flex w-full items-center gap-2 max-md:min-h-[44px] rounded-md px-2 py-1.5 text-left text-sm text-text-secondary transition-colors hover:bg-hover hover:text-text-primary data-[active=true]:bg-accent-soft data-[active=true]:text-text-primary"
             >
               <LineChart size={14} className="shrink-0 text-text-muted" />
               Paper trading
@@ -174,7 +184,7 @@ export default function Sidebar({
           {!loading && error && error !== dismissedError && (
             <div className="mb-3 flex flex-col gap-1.5 px-1">
               <ErrorBanner message={error} onDismiss={() => setDismissedError(error)} />
-              <button onClick={() => void refresh()} className="self-start text-xs font-medium text-accent hover:underline">
+              <button onClick={() => void refresh()} className="inline-flex min-h-[44px] items-center self-start text-xs font-medium text-accent hover:underline">
                 Retry
               </button>
             </div>
@@ -185,7 +195,7 @@ export default function Sidebar({
               <p className="text-sm text-text-secondary">No channels yet.</p>
               <button
                 onClick={() => setModalOpen(true)}
-                className="mt-2 text-sm font-medium text-accent hover:underline"
+                className="mt-2 inline-flex min-h-[44px] items-center text-sm font-medium text-accent hover:underline"
               >
                 Create the first one
               </button>
@@ -226,14 +236,14 @@ export default function Sidebar({
               navigate('/elonixhub');
               onCloseMobile();
             }}
-            className="nav-item flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
+            className="nav-item flex w-full items-center gap-2 max-md:min-h-[44px] rounded-lg px-2 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
           >
             <Compass size={16} />
             Elonix Hub
           </button>
           <button
             onClick={() => setModalOpen(true)}
-            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
+            className="flex w-full items-center gap-2 max-md:min-h-[44px] rounded-lg px-2 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
           >
             <Plus size={16} />
             Create channel
@@ -241,7 +251,7 @@ export default function Sidebar({
         </div>
 
         {session && (
-          <div className="flex items-center gap-2 border-t border-border px-3 py-3" data-tour="profile">
+          <div className="flex items-center gap-1 border-t border-border px-3 pt-3" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }} data-tour="profile">
             <Avatar name={session.user.username} src={myProfile?.avatarUrl} preset={myProfile?.avatarPreset} size={32} online />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-text-primary">
@@ -254,7 +264,7 @@ export default function Sidebar({
                 onCloseMobile();
                 startTour();
               }}
-              className="shrink-0 rounded-md p-2 text-text-secondary hover:bg-hover hover:text-text-primary"
+              className="shrink-0 inline-flex h-11 w-11 items-center justify-center rounded-md text-text-secondary hover:bg-hover hover:text-text-primary"
               aria-label="Take a tour"
               title="Take a tour"
             >
@@ -265,7 +275,7 @@ export default function Sidebar({
                 onCloseMobile();
                 navigate('/settings');
               }}
-              className="shrink-0 rounded-md p-2 text-text-secondary hover:bg-hover hover:text-text-primary"
+              className="shrink-0 inline-flex h-11 w-11 items-center justify-center rounded-md text-text-secondary hover:bg-hover hover:text-text-primary"
               aria-label="Settings"
               title="Settings"
             >
@@ -273,7 +283,7 @@ export default function Sidebar({
             </button>
             <button
               onClick={logout}
-              className="shrink-0 rounded-md p-2 text-text-secondary hover:bg-hover hover:text-danger"
+              className="shrink-0 inline-flex h-11 w-11 items-center justify-center rounded-md text-text-secondary hover:bg-hover hover:text-danger"
               aria-label="Log out"
               title="Log out"
             >
@@ -319,7 +329,7 @@ function ChannelGroup({
                 onClick={() => onSelect(c.id)}
                 data-active={active}
                 className={cx(
-                  'nav-item glow-row flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
+                  'nav-item glow-row flex w-full items-center gap-2 max-md:min-h-[44px] rounded-md px-2 py-1.5 text-left text-sm transition-colors',
                   active
                     ? 'bg-accent-soft text-text-primary'
                     : 'text-text-secondary hover:bg-hover hover:text-text-primary'

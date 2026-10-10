@@ -59,7 +59,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       <div
-        className="pointer-events-none fixed inset-x-0 bottom-4 z-[70] flex flex-col items-center gap-2 px-4 sm:items-end sm:pr-6"
+        className="pointer-events-none fixed inset-x-0 top-[calc(3.5rem+env(safe-area-inset-top,0px))] z-[70] flex flex-col items-center gap-2 px-3 sm:bottom-4 sm:top-auto sm:items-end sm:px-4 sm:pr-6"
         role="region"
         aria-label="Notifications"
         aria-live="polite"
@@ -71,7 +71,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               key={t.id}
               role={t.kind === 'error' ? 'alert' : 'status'}
               className={cx(
-                'pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-lg border bg-panel px-3.5 py-3 text-sm shadow-2xl',
+                'pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-lg border bg-panel px-3.5 py-3 text-sm text-text-primary shadow-2xl',
                 t.leaving ? 'animate-slide-out-right' : 'animate-slide-in-right',
                 STYLES[t.kind]
               )}
@@ -80,10 +80,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <span className="min-w-0 flex-1 break-words">{t.message}</span>
               <button
                 onClick={() => dismiss(t.id)}
-                className="shrink-0 rounded p-0.5 text-text-muted hover:bg-hover hover:text-text-primary"
+                className="-my-1.5 -mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-text-secondary hover:bg-hover hover:text-text-primary sm:-my-0.5 sm:-mr-1 sm:h-8 sm:w-8"
                 aria-label="Dismiss notification"
               >
-                <X size={14} />
+                <X size={16} />
               </button>
             </div>
           );

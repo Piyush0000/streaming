@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { FileText, ImageIcon, LinkIcon, Loader2 } from 'lucide-react';
 import { hubApi, hubPath, type HubSide } from '../lib/hub';
 import { safeUrl } from '../lib/markdown';
+import { canGoBackInApp } from '../lib/nav';
 import { cx } from '../lib/format';
 import { useHubAuth } from '../hooks/useHubAuth';
 import { useToast } from '../context/ToastContext';
@@ -109,7 +110,7 @@ export default function HubSubmitPage() {
     }
   }
 
-  const field = 'w-full rounded-lg border border-border bg-base px-3 py-2 text-sm outline-none transition-colors focus:border-accent';
+  const field = 'min-h-[44px] w-full rounded-lg border border-border bg-base px-3 py-2 text-sm outline-none transition-colors focus:border-accent sm:min-h-0';
   const tabs: { id: Tab; label: string; Icon: typeof FileText }[] = [
     { id: 'text', label: 'Post', Icon: FileText },
     { id: 'image', label: 'Image', Icon: ImageIcon },
@@ -131,7 +132,7 @@ export default function HubSubmitPage() {
               aria-selected={tab === id}
               onClick={() => setTab(id)}
               className={cx(
-                'inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                'tap inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                 tab === id ? 'bg-accent/20 text-accent' : 'text-text-secondary hover:bg-hover'
               )}
             >
@@ -171,7 +172,7 @@ export default function HubSubmitPage() {
               />
             )}
             <div className="mt-1 flex items-center justify-between text-[11px] text-text-muted">
-              <button type="button" onClick={() => setPreview((p) => !p)} className="font-semibold text-accent hover:underline">
+              <button type="button" onClick={() => setPreview((p) => !p)} className="tap inline-flex items-center font-semibold text-accent hover:underline">
                 {preview ? 'Edit' : 'Preview'}
               </button>
               <span>
@@ -195,8 +196,9 @@ export default function HubSubmitPage() {
               <input
                 value={pnl}
                 onChange={(e) => setPnl(e.target.value)}
-                inputMode="decimal"
-                placeholder="PnL %"
+                inputMode="text"
+                autoComplete="off"
+                placeholder="PnL % (e.g. -3.5)"
                 aria-label="PnL percent"
                 aria-invalid={pnlInvalid}
                 className={cx(field, pnlInvalid && 'border-danger')}
@@ -220,15 +222,20 @@ export default function HubSubmitPage() {
             {error}
           </p>
         )}
+        {!canSubmit && !busy && token && (
+          <p className="text-right text-xs text-text-muted" aria-live="polite">
+            {!titleOk ? 'Add a title to post.' : tab === 'image' && !file ? 'Choose an image to post.' : tab === 'image' && pnlInvalid ? 'PnL must be a number.' : tab === 'link' && !safeLink ? 'Enter a full https:// link to post.' : ''}
+          </p>
+        )}
 
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={() => navigate(-1)} disabled={busy} className="rounded-lg px-4 py-2 text-sm text-text-secondary hover:bg-hover">
+          <button type="button" onClick={() => (canGoBackInApp() ? navigate(-1) : navigate(hubPath.home))} disabled={busy} className="tap rounded-lg px-4 py-2 text-sm text-text-secondary hover:bg-hover">
             Cancel
           </button>
           <button
             type="submit"
             disabled={!canSubmit}
-            className="cta-border inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            className="cta-border tap inline-flex items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
           >
             {busy && <Loader2 size={14} className="animate-spin" />} Post
           </button>

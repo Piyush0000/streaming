@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Plus } from 'lucide-react';
+import ShareButton from '../components/hub/ShareButton';
 import { gradientForSlug, hubApi, hubPath, compactCount, type HubCommunity, type HubSort, type HubTime } from '../lib/hub';
 import { ApiError } from '../lib/api';
 import { useHubAuth } from '../hooks/useHubAuth';
@@ -51,7 +52,7 @@ function Header({ slug }: { slug: string }) {
     return (
       <div className="glass rounded-2xl">
         <EmptyState character="bear" title="Community not found" body={`There is no c/${slug} yet.`}>
-          <Link to={hubPath.home} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white">
+          <Link to={hubPath.home} className="tap inline-flex items-center rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white">
             Back to the hub
           </Link>
         </EmptyState>
@@ -61,7 +62,7 @@ function Header({ slug }: { slug: string }) {
     return (
       <div role="alert" className="glass rounded-2xl p-6 text-center">
         <p className="mb-3 text-sm text-text-secondary">Couldn't load this community.</p>
-        <button onClick={() => setNonce((n) => n + 1)} className="rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-hover">
+        <button type="button" onClick={() => setNonce((n) => n + 1)} className="tap rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-hover">
           Retry
         </button>
       </div>
@@ -86,14 +87,22 @@ function Header({ slug }: { slug: string }) {
             <h1 className="truncate text-xl font-extrabold">{community.name}</h1>
             <p className="text-xs text-text-muted">c/{community.slug}</p>
           </div>
+          <ShareButton
+            url={hubPath.community(community.slug)}
+            title={`c/${community.slug} on Elonix Hub`}
+            text={community.description || undefined}
+            showLabel={false}
+            iconSize={17}
+            className="mb-1 inline-flex shrink-0 items-center justify-center rounded-full border border-border p-2 text-text-secondary hover:bg-hover hover:text-text-primary"
+          />
           <button
             type="button"
             onClick={() => void join()}
             aria-pressed={community.joined}
             className={
               community.joined
-                ? 'mb-1 rounded-full border border-border px-5 py-2 text-sm font-semibold text-text-secondary hover:border-danger/50 hover:text-danger'
-                : 'cta-border mb-1 rounded-full px-5 py-2 text-sm font-semibold text-white'
+                ? 'tap mb-1 rounded-full border border-border px-5 py-2 text-sm font-semibold text-text-secondary hover:border-danger/50 hover:text-danger'
+                : 'cta-border tap mb-1 rounded-full px-5 py-2 text-sm font-semibold text-white'
             }
           >
             {community.joined ? 'Joined' : 'Join'}
@@ -125,7 +134,7 @@ export default function HubCommunityPage() {
           onClick={(e) => {
             if (!requireAuth()) e.preventDefault();
           }}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-border px-4 py-2 text-sm font-semibold text-text-secondary hover:border-accent/40 hover:text-text-primary"
+          className="tap inline-flex items-center justify-center gap-1.5 rounded-xl border border-border px-4 py-2 text-sm font-semibold text-text-secondary hover:border-accent/40 hover:text-text-primary"
         >
           <Plus size={15} /> Post in c/{slug}
         </Link>

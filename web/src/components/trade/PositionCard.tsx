@@ -88,7 +88,7 @@ export default function PositionCard({
     }
   }
 
-  const field = 'w-full rounded-md border border-border bg-base px-2 py-1.5 text-sm tabular-nums outline-none focus:border-accent';
+  const field = 'min-h-[44px] w-full rounded-md border border-border bg-base px-2 py-1.5 text-sm tabular-nums text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent';
 
   return (
     <li className="animate-rise-in rounded-xl border border-border bg-panel p-3" data-testid="position-card">
@@ -121,11 +121,11 @@ export default function PositionCard({
       {editing ? (
         <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
           <div className="grid grid-cols-2 gap-2">
-            <label className="flex flex-col gap-1 text-[11px] text-text-muted">
+            <label className="flex flex-col gap-1 text-xs text-text-secondary">
               Stop loss price
               <input value={sl} onChange={(e) => setSl(e.target.value.slice(0, 14))} inputMode="decimal" placeholder="none" className={field} aria-label="Stop loss price" />
             </label>
-            <label className="flex flex-col gap-1 text-[11px] text-text-muted">
+            <label className="flex flex-col gap-1 text-xs text-text-secondary">
               Take profit price
               <input value={tp} onChange={(e) => setTp(e.target.value.slice(0, 14))} inputMode="decimal" placeholder="none" className={field} aria-label="Take profit price" />
             </label>
@@ -140,12 +140,12 @@ export default function PositionCard({
               type="button"
               onClick={() => void save()}
               disabled={busy !== null}
-              className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
+              className="tap inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-1.5 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
             >
               {busy === 'save' && <Spinner size={12} className="text-white" />}
               Save
             </button>
-            <button type="button" onClick={() => setEditing(false)} disabled={busy !== null} className="rounded-md px-3 py-1.5 text-xs text-text-secondary hover:bg-hover">
+            <button type="button" onClick={() => setEditing(false)} disabled={busy !== null} className="tap inline-flex items-center justify-center rounded-md px-4 py-1.5 text-sm text-text-secondary hover:bg-hover">
               Cancel
             </button>
           </div>
@@ -156,7 +156,7 @@ export default function PositionCard({
             type="button"
             onClick={startEdit}
             disabled={busy !== null}
-            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-text-secondary hover:bg-hover hover:text-text-primary"
+            className="tap inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-hover hover:text-text-primary disabled:opacity-60"
           >
             <Pencil size={12} /> Edit SL / TP
           </button>

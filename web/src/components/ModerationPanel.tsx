@@ -31,7 +31,7 @@ export default function ModerationPanel({
         </p>
         <button
           onClick={onRefresh}
-          className="rounded p-1.5 text-text-secondary hover:bg-hover hover:text-text-primary"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-text-secondary hover:bg-hover hover:text-text-primary"
           aria-label="Refresh moderation list"
           title="Refresh"
         >
@@ -71,7 +71,7 @@ export default function ModerationPanel({
                     {u.muted && (
                       <button
                         onClick={() => onAction('unmute', { userId: u.userId, username: name })}
-                        className="rounded-md bg-hover px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border"
+                        className="tap inline-flex items-center rounded-md bg-hover px-3 py-1 text-xs font-medium text-text-primary hover:bg-border"
                       >
                         Unmute
                       </button>
@@ -79,7 +79,7 @@ export default function ModerationPanel({
                     {u.banned && (
                       <button
                         onClick={() => onAction('unban', { userId: u.userId, username: name })}
-                        className="rounded-md bg-hover px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border"
+                        className="tap inline-flex items-center rounded-md bg-hover px-3 py-1 text-xs font-medium text-text-primary hover:bg-border"
                       >
                         Unban
                       </button>

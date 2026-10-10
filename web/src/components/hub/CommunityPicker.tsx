@@ -23,11 +23,11 @@ export default function CommunityPicker({ value, onChange }: { value: string; on
 
   useEffect(() => {
     if (!open) return;
-    const close = (e: MouseEvent) => {
+    const close = (e: PointerEvent) => {
       if (!root.current?.contains(e.target as Node)) setOpen(false);
     };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
   }, [open]);
   useEffect(() => setActive(0), [q, open]);
 
@@ -45,10 +45,10 @@ export default function CommunityPicker({ value, onChange }: { value: string; on
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
-        className="flex w-full items-center gap-2 rounded-lg border border-border bg-base px-3 py-2 text-left text-sm outline-none transition-colors hover:border-accent/50 focus-visible:border-accent sm:w-72"
+        className="flex min-h-[44px] w-full items-center gap-2 rounded-lg border border-border bg-base px-3 py-2 text-left text-sm outline-none transition-colors hover:border-accent/50 focus-visible:border-accent sm:w-72"
       >
         {value ? <CommunityDot slug={value} size={20} /> : null}
-        <span className={cx('min-w-0 flex-1 truncate', !value && 'text-text-muted')}>{value ? `c/${value}` : 'Choose a community (optional)'}</span>
+        <span className={cx('min-w-0 flex-1 truncate', !value && 'text-text-secondary')}>{value ? `c/${value}` : 'Choose a community (optional)'}</span>
         <ChevronDown size={15} className={cx('transition-transform', open && 'rotate-180')} />
       </button>
       {open && (
@@ -56,7 +56,7 @@ export default function CommunityPicker({ value, onChange }: { value: string; on
           <div className="relative mb-2">
             <Search size={14} aria-hidden className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
             <input
-              autoFocus
+              autoFocus={!(typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches)}
               value={q}
               onChange={(e) => setQ(e.target.value.slice(0, 40))}
               onKeyDown={(e) => {
@@ -75,7 +75,7 @@ export default function CommunityPicker({ value, onChange }: { value: string; on
               }}
               aria-label="Search communities"
               placeholder="Search communities"
-              className="w-full rounded-lg border border-border bg-base py-1.5 pl-8 pr-2 text-sm outline-none focus:border-accent"
+              className="min-h-[44px] w-full rounded-lg border border-border bg-base py-1.5 pl-8 pr-2 text-sm outline-none focus:border-accent sm:min-h-0"
             />
           </div>
           <ul id={listId} role="listbox" aria-label="Communities" className="max-h-60 overflow-y-auto">
@@ -86,7 +86,7 @@ export default function CommunityPicker({ value, onChange }: { value: string; on
                 aria-selected={o.slug === value}
                 onMouseEnter={() => setActive(i)}
                 onClick={() => choose(o.slug)}
-                className={cx('flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm', i === active && 'bg-hover')}
+                className={cx('flex min-h-[44px] cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm sm:min-h-0', i === active && 'bg-hover')}
               >
                 {o.slug ? <CommunityDot slug={o.slug} size={20} /> : <span className="w-5" />}
                 <span className="min-w-0 flex-1 truncate">{o.label}</span>

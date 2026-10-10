@@ -397,7 +397,7 @@ export default function StreamPage() {
       <NoticeScreen icon={<Info size={28} />} title="Couldn't load this stream" message={load.message} tone="warning">
         <button
           onClick={() => setReloadKey((k) => k + 1)}
-          className="mt-4 rounded-lg bg-hover px-4 py-2 text-sm font-medium text-text-primary hover:bg-border"
+          className="tap mt-4 inline-flex items-center justify-center rounded-lg bg-hover px-4 py-2 text-sm font-medium text-text-primary hover:bg-border"
         >
           Try again
         </button>
@@ -470,7 +470,7 @@ export default function StreamPage() {
               <p className="text-sm text-text-secondary">You can still read the chat history.</p>
               <button
                 onClick={() => navigate('/live')}
-                className="cta-border mt-2 rounded-lg px-4 py-2 text-sm font-semibold text-white"
+                className="cta-border tap mt-2 inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white"
               >
                 Back to live streams
               </button>
@@ -496,7 +496,7 @@ export default function StreamPage() {
                 setTab('requests');
                 asideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }}
-              className="flex animate-slide-down items-center gap-2 rounded-lg border border-accent/40 bg-accent-soft px-3 py-2 text-left text-sm text-text-primary hover:bg-accent-muted"
+              className="tap flex animate-slide-down items-center gap-2 rounded-lg border border-accent/40 bg-accent-soft px-3 py-2 text-left text-sm text-text-primary hover:bg-accent-muted"
             >
               <Hand size={15} className="origin-bottom animate-wiggle text-accent" />
               {requestCount} {requestCount === 1 ? 'person wants' : 'people want'} to speak - review

@@ -112,8 +112,8 @@ export default function TradePage() {
               aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
               className={cx(
-                'rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
-                tab === t.id ? 'bg-accent-soft text-text-primary' : 'text-text-secondary hover:bg-hover'
+                'min-h-[44px] rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
+                tab === t.id ? 'bg-accent-soft text-text-primary ring-1 ring-accent/60' : 'text-text-secondary hover:bg-hover'
               )}
             >
               {t.label}
@@ -184,7 +184,7 @@ function AccountBar({ account, loading, onReset }: { account: PaperAccount | nul
         <Stat label="Unrealized PnL" value={account.unrealizedPnl} text={formatPnl(account.unrealizedPnl)} tone={pnlColor(account.unrealizedPnl)} />
         <Stat label="Used margin" value={account.usedMargin} text={formatUsd(account.usedMargin)} />
       </div>
-      <div className="flex items-center justify-between gap-2 text-xs text-text-muted">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-muted">
         <span>
           Start balance {formatUsd(account.startingBalance)} · resets used: {account.resetCount}
         </span>
@@ -193,9 +193,9 @@ function AccountBar({ account, loading, onReset }: { account: PaperAccount | nul
           onClick={onReset}
           disabled={cooling}
           title={cooling ? 'You can reset once per hour' : 'Reset paper account'}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          className="tap inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-3 py-1.5 font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <RotateCcw size={12} /> Reset account
+          <RotateCcw size={12} /> {cooling ? `Reset available ${new Date(account.resetAvailableAt as string).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Reset account"}
         </button>
       </div>
     </section>
@@ -252,14 +252,14 @@ function ResetModal({
         </p>
         {err && <ErrorBanner message={err} />}
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-lg px-4 py-2 text-sm text-text-secondary hover:bg-hover">
+          <button type="button" onClick={onClose} disabled={busy} className="tap rounded-lg px-4 py-2 text-sm text-text-secondary hover:bg-hover">
             Cancel
           </button>
           <button
             type="button"
             onClick={() => void go()}
             disabled={busy}
-            className="inline-flex items-center gap-2 rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white hover:bg-danger/90 disabled:opacity-60"
+            className="tap inline-flex items-center justify-center gap-2 rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-60"
           >
             {busy && <Spinner size={14} className="text-white" />}
             Reset

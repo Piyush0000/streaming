@@ -21,7 +21,7 @@ type Mode = 'price' | 'pct';
 
 const FALLBACK_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT'];
 const field =
-  'w-full rounded-lg border border-border bg-base px-3 py-2 text-sm tabular-nums outline-none focus:border-accent disabled:opacity-50';
+  'min-h-[44px] w-full rounded-lg border border-border bg-base px-3 py-2 text-sm tabular-nums text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-60';
 
 export default function OrderTicket({
   token,
@@ -127,7 +127,7 @@ export default function OrderTicket({
         </label>
         <div className="flex flex-col gap-1 text-xs text-text-secondary">
           Live price
-          <div className="flex h-[38px] items-center rounded-lg border border-border bg-base px-3 text-sm font-semibold tabular-nums text-text-primary">
+          <div className="flex h-[44px] items-center rounded-lg border border-border bg-base px-3 text-sm font-semibold tabular-nums text-text-primary">
             {priceUsable ? formatPrice(price as number) : '—'}
           </div>
         </div>
@@ -145,7 +145,7 @@ export default function OrderTicket({
               aria-checked={on}
               onClick={() => setSide(s)}
               className={cx(
-                'flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2.5 text-sm font-bold transition-colors',
+                'flex min-h-[48px] items-center justify-center gap-1.5 rounded-lg border px-3 py-2.5 text-sm font-bold transition-colors',
                 on
                   ? long
                     ? 'border-success bg-success/20 text-success'
@@ -179,7 +179,7 @@ export default function OrderTicket({
               type="button"
               onClick={() => setPct(p)}
               disabled={available <= 0}
-              className="rounded-md border border-border bg-base py-1.5 text-xs font-semibold text-text-secondary transition-colors hover:bg-hover hover:text-text-primary disabled:opacity-40"
+              className="tap inline-flex items-center justify-center rounded-md border border-border bg-base py-1.5 text-xs font-semibold text-text-secondary transition-colors hover:bg-hover hover:text-text-primary disabled:opacity-60"
             >
               {p}%
             </button>
@@ -201,7 +201,7 @@ export default function OrderTicket({
           step={1}
           value={leverage}
           onChange={(e) => setLeverage(Math.min(MAX_LEVERAGE, Math.max(1, Number(e.target.value) || 1)))}
-          className="w-full accent-[#3b82f6]"
+          className="range-lg w-full accent-[#3b82f6]"
         />
         <div className="flex justify-between text-[10px] text-text-muted">
           <span>1x</span>
@@ -255,12 +255,18 @@ export default function OrderTicket({
         </p>
       )}
 
+      {!canSubmit && !busy && account && account.pricesOk && notional === 0 && (
+        <p role="status" className="text-xs text-text-secondary">
+          Enter a size (min ${account.limits.minNotionalUsd ?? 10}) or tap a % button to enable the order button.
+        </p>
+      )}
+
       <button
         type="submit"
         disabled={!canSubmit}
         className={cx(
-          'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40',
-          side === 'LONG' ? 'bg-success hover:bg-success/90' : 'bg-danger hover:bg-danger/90'
+          'inline-flex min-h-[48px] items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold text-white transition-colors disabled:cursor-not-allowed disabled:bg-hover disabled:text-text-secondary',
+          side === 'LONG' ? 'bg-[#15803d] hover:bg-[#166534]' : 'bg-[#b91c1c] hover:bg-[#991b1b]'
         )}
       >
         {busy && <Spinner size={14} className="text-white" />}
@@ -332,7 +338,7 @@ function LevelInput({
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between text-xs text-text-secondary">
         <span>{label}</span>
-        <div role="radiogroup" aria-label={`${label} input type`} className="flex overflow-hidden rounded-md border border-border text-[11px]">
+        <div role="radiogroup" aria-label={`${label} input type`} className="flex overflow-hidden rounded-md border border-border text-xs">
           {(['pct', 'price'] as const).map((m) => (
             <button
               key={m}
@@ -340,7 +346,7 @@ function LevelInput({
               role="radio"
               aria-checked={mode === m}
               onClick={() => switchMode(m)}
-              className={cx('px-2 py-0.5 font-semibold', mode === m ? 'bg-accent-soft text-text-primary' : 'text-text-muted hover:bg-hover')}
+              className={cx('tap inline-flex min-w-[44px] items-center justify-center px-3 py-1 font-semibold', mode === m ? 'bg-accent text-white' : 'text-text-secondary hover:bg-hover')}
             >
               {m === 'pct' ? '%' : '$'}
             </button>

@@ -51,7 +51,7 @@ export default function StageControls({
             </span>
             <button
               onClick={onCancelSpeakRequest}
-              className="ml-auto rounded-lg bg-hover px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-border"
+              className="tap ml-auto inline-flex items-center justify-center rounded-lg bg-hover px-4 py-1.5 text-sm font-medium text-text-primary hover:bg-border"
             >
               Cancel request
             </button>
@@ -67,7 +67,7 @@ export default function StageControls({
               onClick={onRequestSpeak}
               disabled={cooldownSecs > 0}
               aria-live="polite"
-              className="cta-border group/hand ml-auto flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:text-text-secondary"
+              className="cta-border tap group/hand ml-auto flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:text-text-secondary"
             >
               {cooldownSecs > 0 ? <Timer size={15} /> : <Hand size={15} className="origin-bottom group-hover/hand:animate-wiggle" />}
               {cooldownSecs > 0 ? `Ask again in ${cooldownSecs}s` : 'Request to speak'}
@@ -86,7 +86,7 @@ export default function StageControls({
           <ErrorBanner message={micError} />
           <button
             onClick={onRetryMic}
-            className="flex w-fit items-center gap-2 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-white hover:bg-accent-hover"
+            className="tap flex w-fit items-center gap-2 rounded-lg bg-accent px-4 py-1.5 text-sm font-semibold text-white hover:bg-accent-hover"
           >
             <RotateCw size={14} /> Retry microphone
           </button>

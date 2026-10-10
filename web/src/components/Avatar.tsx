@@ -1,18 +1,11 @@
 import { useEffect, useState } from 'react';
-import { colorForName, cx, initials } from '../lib/format';
+import { cx, initials } from '../lib/format';
+import { avatarColor, avatarGradient } from '../lib/avatarColor';
 import { getCharacter } from './characters/characters';
 
 export type AvatarSize = 'sm' | 'md' | 'lg' | number;
 
 const SIZE_PX = { sm: 24, md: 36, lg: 72 } as const;
-
-/** Two-stop gradient derived deterministically from the username. */
-function gradientForName(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  const hue = Math.abs(hash) % 360;
-  return `linear-gradient(135deg, hsl(${hue}, 62%, 52%), hsl(${(hue + 42) % 360}, 58%, 38%))`;
-}
 
 /**
  * Initial-based avatar. `speaking` shows a pulsing ring (voice activity),
@@ -54,9 +47,9 @@ export default function Avatar({
   const dot = Math.max(8, Math.round(px * 0.28));
   let background: string;
   try {
-    background = gradientForName(safeName);
+    background = avatarGradient(safeName);
   } catch {
-    background = colorForName(safeName);
+    background = avatarColor(safeName);
   }
 
   return (

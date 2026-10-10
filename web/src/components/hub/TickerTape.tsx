@@ -15,7 +15,7 @@ const TapeItem = memo(function TapeItem({ s, dup }: { s: MarketSymbol; dup?: boo
     <Link
       to={hubMarketPath.marketsFor(s.symbol)}
       tabIndex={dup ? -1 : undefined}
-      className="flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs transition-colors hover:bg-hover/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className="flex shrink-0 items-center gap-2 px-3 py-2.5 text-xs transition-colors sm:py-1.5 hover:bg-hover/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
       <span className="font-bold text-text-primary">{s.base}</span>
       <span className="tabular-nums text-text-secondary">{formatPriceSmart(s.price)}</span>
@@ -99,7 +99,7 @@ function HeadlineRotator() {
   const item = items[idx % items.length]!;
   return (
     <div
-      className="flex items-center gap-2 border-t border-border/60 px-3 py-1.5 text-xs"
+      className="flex items-center gap-2 border-t border-border/60 px-3 text-xs"
       onMouseEnter={() => setHold(true)}
       onMouseLeave={() => setHold(false)}
       onFocus={() => setHold(true)}
@@ -114,7 +114,7 @@ function HeadlineRotator() {
           href={item.url}
           target="_blank"
           rel="noopener noreferrer nofollow"
-          className="headline-fade flex min-w-0 items-center gap-2 text-text-secondary hover:text-text-primary"
+          className="headline-fade tap flex min-w-0 items-center gap-2 py-1.5 text-text-secondary hover:text-text-primary"
         >
           <span className="truncate">{item.title}</span>
           <span className="hidden shrink-0 text-text-muted sm:inline">
@@ -124,7 +124,7 @@ function HeadlineRotator() {
           <ExternalLink size={11} aria-hidden className="shrink-0 text-text-muted" />
         </a>
       </div>
-      <Link to={hubMarketPath.news} className="shrink-0 font-semibold text-text-muted hover:text-text-primary">
+      <Link to={hubMarketPath.news} className="tap inline-flex shrink-0 items-center justify-center px-1 font-semibold text-text-secondary hover:text-text-primary">
         All news
       </Link>
     </div>

@@ -9,6 +9,7 @@ import { useSession } from '../context/SessionContext';
 import { useToast } from '../context/ToastContext';
 import { useBlocks } from '../hooks/useBlocks';
 import { primeProfile } from '../hooks/useProfiles';
+import { guessImageType, shrinkImage } from '../lib/imageResize';
 import {
   AVATAR_MAX_BYTES,
   BIO_MAX,
@@ -86,18 +87,22 @@ export default function SettingsPage() {
     if (fileRef.current) fileRef.current.value = '';
     if (!file || !profile) return;
     setAvatarError(null);
-    if (!ALLOWED_TYPES.includes(file.type)) {
+    const type = guessImageType(file.name, file.type);
+    if (!ALLOWED_TYPES.includes(type)) {
       setAvatarError('Use a PNG, JPG, WebP or GIF image.');
       return;
     }
-    if (file.size > AVATAR_MAX_BYTES) {
-      setAvatarError('That image is too large (max 2MB).');
+    setAvatarBusy(true);
+    // Phone photos are usually bigger than the limit: shrink them instead of refusing.
+    const upload = await shrinkImage(file.type ? file : new File([file], file.name, { type }), AVATAR_MAX_BYTES, 1024);
+    if (!upload) {
+      setAvatarBusy(false);
+      setAvatarError('That image is too large (max 2MB). Try a smaller one.');
       return;
     }
-    setPreview(URL.createObjectURL(file));
-    setAvatarBusy(true);
+    setPreview(URL.createObjectURL(upload));
     try {
-      const url = await uploadAvatar(token, file);
+      const url = await uploadAvatar(token, upload);
       apply({ ...profile, avatarUrl: url, avatarPreset: null });
       showToast('Avatar updated.', 'success');
     } catch (err) {
@@ -152,7 +157,7 @@ export default function SettingsPage() {
   }
 
   const inputCls =
-    'w-full rounded-lg border border-border bg-base px-3 py-2 text-sm text-text-primary outline-none focus:border-accent';
+    'min-h-[44px] w-full rounded-lg border border-border bg-base px-3 py-2 text-sm text-text-primary outline-none focus:border-accent sm:min-h-0';
   const dirty = !!profile && (displayName.trim() !== (profile.displayName === profile.username ? '' : profile.displayName) || bio.trim() !== profile.bio);
 
   return (
@@ -182,7 +187,7 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => fileRef.current?.click()}
                       disabled={avatarBusy}
-                      className="flex items-center gap-2 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+                      className="tap flex items-center justify-center gap-2 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-60"
                     >
                       {avatarBusy ? <Spinner size={14} className="text-white" /> : <Upload size={14} />} Upload avatar
                     </button>
@@ -191,7 +196,7 @@ export default function SettingsPage() {
                         type="button"
                         onClick={() => void onRemoveAvatar()}
                         disabled={avatarBusy}
-                        className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm text-text-primary hover:bg-hover disabled:opacity-50"
+                        className="tap flex items-center justify-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm text-text-primary hover:bg-hover disabled:opacity-60"
                       >
                         <Trash2 size={14} /> Remove
                       </button>
@@ -221,12 +226,12 @@ export default function SettingsPage() {
                         title={selected ? `${c.label} (click to clear)` : c.label}
                         disabled={avatarBusy}
                         onClick={() => void onPickPreset(selected ? null : c.id)}
-                        className={`flex flex-col items-center gap-1 rounded-xl border p-1.5 transition-all hover:scale-105 disabled:opacity-50 ${
+                        className={`flex flex-col items-center gap-1 rounded-xl border p-1.5 transition-all hover:scale-105 disabled:opacity-60 ${
                           selected ? 'border-accent bg-accent/10 ring-2 ring-accent/40' : 'border-border hover:border-accent/40'
                         }`}
                       >
                         <Avatar name={c.label} preset={c.id} size={48} />
-                        <span className="w-full truncate text-center text-[10px] text-text-muted">{c.label}</span>
+                        <span className="w-full truncate text-center text-[11px] text-text-secondary">{c.label}</span>
                       </button>
                     );
                   })}
@@ -285,7 +290,7 @@ export default function SettingsPage() {
                   <button
                     type="submit"
                     disabled={saving || !dirty}
-                    className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                    className="tap rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   >
                     {saving ? 'Saving…' : 'Save changes'}
                   </button>
@@ -317,9 +322,10 @@ export default function SettingsPage() {
                   <p className="truncate text-xs text-text-muted">@{b.username}</p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => void onUnblock(b.id)}
                   disabled={unblocking === b.id}
-                  className="rounded-lg border border-border px-3 py-1 text-xs font-medium text-text-primary hover:bg-hover disabled:opacity-50"
+                  className="tap rounded-lg border border-border px-3 py-1 text-xs font-medium text-text-primary hover:bg-hover disabled:opacity-60"
                 >
                   Unblock
                 </button>
@@ -333,8 +339,9 @@ export default function SettingsPage() {
             Account
           </h2>
           <button
+            type="button"
             onClick={logout}
-            className="flex items-center gap-2 rounded-lg border border-danger/40 px-4 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+            className="tap flex items-center justify-center gap-2 rounded-lg border border-danger/40 px-4 py-2 text-sm font-medium text-danger hover:bg-danger/10"
           >
             <LogOut size={16} /> Sign out
           </button>

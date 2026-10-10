@@ -25,6 +25,32 @@ function getObserver(): IntersectionObserver | null {
 }
 
 /**
+ * Safety net: some in-app browsers deliver IntersectionObserver callbacks late or never, which
+ * would leave `.reveal` content at opacity 0 (invisible text). On load/scroll/resize and after a
+ * short delay, anything already in (or above) the viewport is revealed directly.
+ */
+let fallbackInstalled = false;
+function installRevealFallback() {
+  if (fallbackInstalled || typeof window === 'undefined') return;
+  fallbackInstalled = true;
+  let raf = 0;
+  const sweep = () => {
+    raf = 0;
+    const limit = window.innerHeight * 1.05;
+    document.querySelectorAll<HTMLElement>('.reveal:not(.is-visible)').forEach((el) => {
+      if (el.getBoundingClientRect().top < limit) el.classList.add('is-visible');
+    });
+  };
+  const queue = () => {
+    if (!raf) raf = window.requestAnimationFrame(sweep);
+  };
+  window.addEventListener('scroll', queue, { passive: true });
+  window.addEventListener('resize', queue);
+  window.setInterval(sweep, 1500);
+  window.setTimeout(sweep, 400);
+}
+
+/**
  * Returns a ref callback; the element fades/rises in once it scrolls into view.
  * Pair with the `.reveal` class. `delayMs` staggers siblings. Without
  * IntersectionObserver support the element is simply shown.
@@ -38,6 +64,7 @@ export function useReveal<T extends HTMLElement = HTMLDivElement>(delayMs = 0) {
       if (prev && prev !== el) getObserver()?.unobserve(prev);
       elRef.current = el;
       if (!el) return;
+      installRevealFallback();
       if (delayMs) el.style.setProperty('--reveal-delay', `${delayMs}ms`);
       const io = getObserver();
       if (io) io.observe(el);
@@ -60,10 +87,19 @@ export function useReveal<T extends HTMLElement = HTMLDivElement>(delayMs = 0) {
 export function useInView<T extends HTMLElement = HTMLDivElement>(): [(el: T | null) => void, boolean] {
   const [seen, setSeen] = useState(false);
   const ioRef = useRef<IntersectionObserver | null>(null);
+  const pollRef = useRef<number | null>(null);
 
-  const ref = useCallback((el: T | null) => {
+  const stop = () => {
     ioRef.current?.disconnect();
     ioRef.current = null;
+    if (pollRef.current !== null) {
+      window.clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  const ref = useCallback((el: T | null) => {
+    stop();
     if (!el) return;
     if (typeof IntersectionObserver === 'undefined') {
       setSeen(true);
@@ -74,18 +110,26 @@ export function useInView<T extends HTMLElement = HTMLDivElement>(): [(el: T | n
         (entries) => {
           if (entries.some((e) => e.isIntersecting)) {
             setSeen(true);
-            io.disconnect();
+            stop();
           }
         },
         { threshold: 0.4 }
       );
       io.observe(el);
       ioRef.current = io;
+      // In-app browsers can deliver observer callbacks late or never: poll the position as a backstop.
+      pollRef.current = window.setInterval(() => {
+        const r = el.getBoundingClientRect();
+        if (r.top < window.innerHeight && r.bottom > 0) {
+          setSeen(true);
+          stop();
+        }
+      }, 1200);
     } catch {
       setSeen(true);
     }
   }, []);
 
-  useEffect(() => () => ioRef.current?.disconnect(), []);
+  useEffect(() => stop, []);
   return [ref, seen];
 }

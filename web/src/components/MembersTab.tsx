@@ -180,7 +180,7 @@ export default function MembersTab({
         {!loading && loadError && (
           <div className="flex flex-col items-start gap-2">
             <ErrorBanner message={loadError} />
-            <button onClick={() => void load()} className="text-sm font-medium text-accent hover:underline">
+            <button onClick={() => void load()} className="inline-flex min-h-[44px] items-center text-sm font-medium text-accent hover:underline">
               Try again
             </button>
           </div>
@@ -212,7 +212,7 @@ export default function MembersTab({
                   </div>
                   <RoleBadge role={m.role} />
                   {(canChangeRole || canRemove) && (
-                    <div className="flex items-center gap-1">
+                    <div className="flex flex-wrap items-center gap-1">
                       {canChangeRole && (
                         <button
                           type="button"

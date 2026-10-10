@@ -32,7 +32,7 @@ export default function SegmentedControl<T extends string>({
           <label
             key={o.value}
             className={cx(
-              'flex cursor-pointer items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors focus-within:ring-2 focus-within:ring-accent',
+              'flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors focus-within:ring-2 focus-within:ring-accent',
               checked ? 'border-accent bg-accent-soft text-text-primary' : 'border-border bg-base text-text-secondary hover:bg-hover',
               disabled && 'cursor-not-allowed opacity-50'
             )}

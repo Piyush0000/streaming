@@ -55,7 +55,7 @@ export default function JoinStatusBanner({
           <button
             onClick={onRetry}
             disabled={waitSecs > 0}
-            className="w-fit rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+            className="tap inline-flex w-fit items-center justify-center rounded-lg bg-accent px-4 py-1.5 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             {waitSecs > 0 ? `Retry in ${waitSecs}s` : label}
           </button>

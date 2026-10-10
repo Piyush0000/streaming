@@ -11,6 +11,7 @@ export const VOICE_MAX_PEOPLE = 25;
 const NAME_RE = /^[a-zA-Z0-9_-]+$/;
 
 const inputCls =
+  'min-h-[44px] ' +
   'w-full rounded-lg border bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1';
 const labelCls = 'mb-1.5 block text-xs font-semibold uppercase tracking-wide text-text-secondary';
 
@@ -120,7 +121,6 @@ export default function CreateChannelModal({
           </label>
           <input
             id="channel-name"
-            autoFocus
             placeholder="general"
             value={name}
             onChange={(e) => {

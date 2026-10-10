@@ -32,14 +32,14 @@ export default function ElonixHubPage() {
         <button
           type="button"
           onClick={goSubmit}
-          className="min-w-0 flex-1 rounded-full border border-border bg-base/60 px-4 py-2 text-left text-sm text-text-muted transition-colors hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="tap min-w-0 flex-1 rounded-full border border-border bg-base/60 px-4 py-2 text-left text-sm text-text-secondary transition-colors hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           Create a post
         </button>
-        <Link to={hubPath.submit} state={{ tab: 'image' }} aria-label="Post an image" className="rounded-lg p-2 text-text-secondary hover:bg-hover hover:text-accent">
+        <Link to={hubPath.submit} state={{ tab: 'image' }} aria-label="Post an image" className="tap inline-flex items-center justify-center rounded-lg p-2 text-text-secondary hover:bg-hover hover:text-accent">
           <ImagePlus size={20} />
         </Link>
-        <Link to={hubPath.submit} state={{ tab: 'link' }} aria-label="Post a link" className="rounded-lg p-2 text-text-secondary hover:bg-hover hover:text-accent">
+        <Link to={hubPath.submit} state={{ tab: 'link' }} aria-label="Post a link" className="tap inline-flex items-center justify-center rounded-lg p-2 text-text-secondary hover:bg-hover hover:text-accent">
           <LinkIcon size={20} />
         </Link>
       </div>
@@ -65,7 +65,7 @@ export default function ElonixHubPage() {
         emptyTitle={feedJoined ? 'Nothing from your communities yet' : 'No posts yet'}
         emptyBody={feedJoined ? 'Join a few communities or switch off the Joined filter.' : 'Be the first to share a trade, a link or a thought.'}
         emptyAction={
-          <button onClick={goSubmit} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white">
+          <button type="button" onClick={goSubmit} className="tap rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white">
             Create a post
           </button>
         }

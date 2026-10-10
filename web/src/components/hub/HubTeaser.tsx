@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowBigUp, ArrowRight, Heart, ImageIcon } from 'lucide-react';
 import { hubApi, hubPath, HubPost } from '../../lib/hub';
-import { colorForName, cx, initials } from '../../lib/format';
+import { cx, initials } from '../../lib/format';
+import { avatarColor } from '../../lib/avatarColor';
 import PostBadges from './PostBadges';
 
 const MOCKS = [
@@ -48,7 +49,7 @@ export default function HubTeaser() {
             <div className="mb-3 flex items-center gap-2.5">
               <span
                 className="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold text-white"
-                style={{ background: colorForName(m.user) }}
+                style={{ background: avatarColor(m.user) }}
               >
                 {initials(m.user)}
               </span>
@@ -87,6 +88,7 @@ export default function HubTeaser() {
               <button
                 key={p.id}
                 onClick={() => navigate(p.id ? hubPath.post(p.id) : '/elonixhub')}
+                type="button"
                 className="overflow-hidden rounded-2xl border border-border bg-panel text-left transition-colors hover:border-accent/40"
               >
                 {p.imageUrl ? (
@@ -113,6 +115,7 @@ export default function HubTeaser() {
 
       <div className="mt-8 flex justify-center">
         <button
+          type="button"
           onClick={() => navigate('/elonixhub')}
           className="inline-flex items-center gap-2 rounded-xl bg-accent px-7 py-3.5 text-sm font-bold text-white shadow-lg transition-all duration-300 hover:scale-105 hover:bg-accent-hover sm:text-base"
         >

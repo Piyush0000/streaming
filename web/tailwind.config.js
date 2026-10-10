@@ -2,6 +2,13 @@
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
+    // `base` is the page-background colour. Left in textColor it collides with the font-size
+    // utility `text-base` (and `sm:text-base`): the colour rule wins and text turns #050a17 on a
+    // dark background (invisible). Keep the palette for everything else, drop it for text only.
+    textColor: ({ theme }) => {
+      const { base: _base, ...rest } = theme('colors');
+      return rest;
+    },
     extend: {
       colors: {
         base: '#050a17',

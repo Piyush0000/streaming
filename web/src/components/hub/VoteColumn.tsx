@@ -53,7 +53,7 @@ interface Props {
 /** Up/down arrows with an animated score. Orange = upvoted, violet = downvoted. */
 export default function VoteColumn({ score, myVote, onUp, onDown, horizontal, size = 'md' }: Props) {
   const icon = size === 'sm' ? 18 : 22;
-  const btn = 'rounded-md p-0.5 transition-colors duration-fast hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+  const btn = 'hit inline-flex items-center justify-center rounded-md p-1 transition-colors duration-fast hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
   return (
     <div
       role="group"

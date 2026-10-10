@@ -77,5 +77,8 @@ export function useInfinite<T extends { id: string }>(
   }, [cursor, loading, failed, done, load, items.length]);
 
   const retry = useCallback(() => void load(cursor), [load, cursor]);
-  return { items, setItems, loading, failed, done, retry, sentinel, hasMore: !!cursor };
+  const loadMore = useCallback(() => {
+    if (cursor) void load(cursor);
+  }, [load, cursor]);
+  return { items, setItems, loading, failed, done, retry, loadMore, sentinel, hasMore: !!cursor && !done };
 }

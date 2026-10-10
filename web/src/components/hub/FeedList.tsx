@@ -68,7 +68,7 @@ export function FeedControls({
   joined?: boolean;
   onJoined?: (v: boolean) => void;
 }) {
-  const tab = 'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+  const tab = 'tap inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
   return (
     <div className="glass flex flex-wrap items-center gap-2 rounded-2xl p-2">
       <div role="tablist" aria-label="Sort posts" className="flex items-center gap-1">
@@ -90,7 +90,7 @@ export function FeedControls({
           value={time}
           onChange={(e) => onTime(e.target.value as HubTime)}
           aria-label="Time range"
-          className="rounded-lg border border-border bg-base px-2 py-1.5 text-sm outline-none focus:border-accent"
+          className="min-h-[44px] rounded-lg border border-border bg-base px-2 py-1.5 text-sm outline-none focus:border-accent sm:min-h-0"
         >
           {TIMES.map((t) => (
             <option key={t.value} value={t.value}>
@@ -120,7 +120,7 @@ export function FeedControls({
             aria-label={label}
             aria-pressed={view === v}
             onClick={() => onView(v)}
-            className={cx('rounded-lg p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', view === v ? 'bg-accent/20 text-accent' : 'text-text-muted hover:bg-hover')}
+            className={cx('tap inline-flex items-center justify-center rounded-lg p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', view === v ? 'bg-accent/20 text-accent' : 'text-text-secondary hover:bg-hover')}
           >
             <Icon size={16} />
           </button>
@@ -174,7 +174,7 @@ export default function FeedList({ fetchPage, resetKey, view, token, requireAuth
           <button
             type="button"
             onClick={feed.retry}
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-hover"
+            className="tap inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-hover"
           >
             <RefreshCw size={14} /> Retry
           </button>
@@ -188,6 +188,18 @@ export default function FeedList({ fetchPage, resetKey, view, token, requireAuth
         </div>
       )}
       {feed.done && feed.items.length > 0 && <p className="py-4 text-center text-xs text-text-muted">You're all caught up.</p>}
+      {feed.hasMore && !feed.loading && !feed.failed && (
+        <div className="flex justify-center py-2">
+          {/* Fallback for webviews without IntersectionObserver (and for anyone who prefers tapping). */}
+          <button
+            type="button"
+            onClick={feed.loadMore}
+            className="tap rounded-full border border-border px-5 py-2 text-sm font-semibold text-text-secondary hover:border-accent/50 hover:text-text-primary"
+          >
+            Load more
+          </button>
+        </div>
+      )}
       <div ref={feed.sentinel} className="h-1" />
     </div>
   );

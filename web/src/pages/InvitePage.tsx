@@ -122,7 +122,8 @@ export default function InvitePage() {
       >
         <button
           onClick={() => setReloadKey((k) => k + 1)}
-          className="mt-4 rounded-lg bg-hover px-4 py-2 text-sm font-medium text-text-primary hover:bg-border"
+          type="button"
+          className="tap mt-4 rounded-lg bg-hover px-4 py-2 text-sm font-medium text-text-primary hover:bg-border"
         >
           Try again
         </button>
@@ -190,7 +191,7 @@ export default function InvitePage() {
             <p className="mt-5 text-sm text-text-secondary">You're already a member of this channel.</p>
             <Link
               to={`/channels/${channel.id}`}
-              className="mt-3 block w-full rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
+              className="tap mt-3 block w-full rounded-lg bg-accent px-5 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
             >
               Open channel
             </Link>
@@ -199,14 +200,15 @@ export default function InvitePage() {
           <button
             onClick={join}
             disabled={joining}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+            type="button"
+            className="tap mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             {joining && <Spinner size={15} className="text-white" />}
             {joining ? 'Joining…' : `Join #${channel.name}`}
           </button>
         )}
 
-        <Link to="/channels" className="mt-3 inline-block text-sm text-text-secondary hover:text-text-primary hover:underline">
+        <Link to="/channels" className="tap mt-3 inline-flex items-center text-sm text-text-secondary hover:text-text-primary hover:underline">
           Not now
         </Link>
       </div>

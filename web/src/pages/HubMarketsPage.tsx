@@ -158,7 +158,7 @@ export default function HubMarketsPage() {
       <section aria-label="Markets" className="space-y-3">
         <div className="glass space-y-3 rounded-2xl p-3">
           <div className="flex flex-wrap items-center gap-2">
-            <div role="tablist" aria-label="Market view" className="flex flex-1 gap-1 overflow-x-auto">
+            <div role="tablist" aria-label="Market view" className="scrollbar-none flex min-w-0 basis-full gap-1 overflow-x-auto sm:flex-1 sm:basis-0">
               {TABS.map((t) => (
                 <button
                   key={t.id}
@@ -170,7 +170,7 @@ export default function HubMarketsPage() {
                     setShown(CHUNK);
                   }}
                   className={cx(
-                    'shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                    'tap shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:text-xs',
                     tab === t.id ? 'bg-accent text-white' : 'text-text-secondary hover:bg-hover hover:text-text-primary'
                   )}
                 >
@@ -191,10 +191,12 @@ export default function HubMarketsPage() {
                 type="search"
                 aria-label="Search symbols"
                 placeholder="Search symbols (BTC, ETH…)"
-                className="w-full rounded-full border border-border bg-base/60 py-2 pl-9 pr-9 text-sm outline-none transition-colors focus:border-accent"
+                enterKeyHint="search"
+                autoComplete="off"
+                className="min-h-[44px] w-full rounded-full border border-border bg-base/60 py-2 pl-9 pr-11 text-sm outline-none transition-colors focus:border-accent sm:min-h-0 sm:pr-9"
               />
               {q && (
-                <button type="button" onClick={() => onSearch('')} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-text-muted hover:text-text-primary">
+                <button type="button" onClick={() => onSearch('')} aria-label="Clear search" className="tap absolute right-0 top-1/2 inline-flex -translate-y-1/2 items-center justify-center rounded-full p-1.5 text-text-secondary hover:text-text-primary sm:right-1">
                   <X size={14} />
                 </button>
               )}
@@ -207,7 +209,7 @@ export default function HubMarketsPage() {
                   const [key, dir] = e.target.value.split(':') as [SortKey, 'asc' | 'desc'];
                   setSort({ key, dir });
                 }}
-                className="rounded-full border border-border bg-base/60 px-3 py-2 text-xs outline-none focus:border-accent"
+                className="min-h-[44px] rounded-full border border-border bg-base/60 px-3 py-2 text-sm outline-none focus:border-accent"
               >
                 <option value="quoteVolume:desc">Volume</option>
                 <option value="changePct:desc">Top gainers</option>
@@ -239,8 +241,8 @@ export default function HubMarketsPage() {
         )}
 
         <div role="table" aria-label="Market prices" className="glass rounded-2xl">
-          <div role="rowgroup" className="hidden md:block">
-            <div role="row" className={cx('sticky top-[5.5rem] z-10 grid items-center gap-3 rounded-t-2xl border-b border-border bg-panel/95 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted backdrop-blur', COLS)}>
+          <div role="rowgroup" className="sticky top-[var(--hub-nav-h,5.5rem)] z-10 hidden md:block">
+            <div role="row" className={cx('grid items-center gap-3 rounded-t-2xl border-b border-border bg-panel/95 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted backdrop-blur', COLS)}>
               {HEADERS.map((h) => {
                 const active = h.key !== null && sort.key === h.key;
                 return h.key ? (
@@ -295,7 +297,7 @@ export default function HubMarketsPage() {
 
         {rows.length > shown && (
           <div className="flex justify-center">
-            <button type="button" onClick={() => setShown((n) => n + CHUNK)} className="rounded-full border border-border px-5 py-2 text-xs font-semibold text-text-secondary hover:border-accent/50 hover:text-text-primary">
+            <button type="button" onClick={() => setShown((n) => n + CHUNK)} className="tap rounded-full border border-border px-5 py-2 text-sm font-semibold text-text-secondary hover:border-accent/50 hover:text-text-primary">
               Show more ({rows.length - shown} remaining)
             </button>
           </div>

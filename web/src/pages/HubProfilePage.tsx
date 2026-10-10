@@ -12,6 +12,7 @@ import { useUserCard } from '../components/UserCard';
 import Skeleton from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import HubShell from '../components/hub/HubShell';
+import ShareButton from '../components/hub/ShareButton';
 import FeedList, { PostSkeleton, useFeedView } from '../components/hub/FeedList';
 import Markdown from '../components/hub/Markdown';
 
@@ -64,7 +65,7 @@ function CommentsTab({ username, token, enabled }: { username: string; token: st
       {feed.failed && (
         <div role="alert" className="glass rounded-2xl p-6 text-center">
           <p className="mb-3 text-sm text-text-secondary">Couldn't load comments.</p>
-          <button onClick={feed.retry} className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-hover">
+          <button type="button" onClick={feed.retry} className="tap inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-hover">
             <RefreshCw size={14} /> Retry
           </button>
         </div>
@@ -134,7 +135,7 @@ export default function HubProfilePage() {
       {state === 'missing' && (
         <div className="glass rounded-2xl">
           <EmptyState character="robot" title="User not found" body={`There is no u/${username}.`}>
-            <Link to={hubPath.home} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white">
+            <Link to={hubPath.home} className="tap inline-flex items-center rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white">
               Back to the hub
             </Link>
           </EmptyState>
@@ -143,7 +144,7 @@ export default function HubProfilePage() {
       {state === 'error' && (
         <div role="alert" className="glass rounded-2xl p-6 text-center">
           <p className="mb-3 text-sm text-text-secondary">Couldn't load this profile.</p>
-          <button onClick={() => setNonce((n) => n + 1)} className="rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-hover">
+          <button type="button" onClick={() => setNonce((n) => n + 1)} className="tap rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-hover">
             Retry
           </button>
         </div>
@@ -162,12 +163,19 @@ export default function HubProfilePage() {
                   <h1 className="truncate text-xl font-extrabold">{user.displayName}</h1>
                   <p className="truncate text-sm text-text-muted">u/{user.username}</p>
                 </div>
+                <ShareButton
+                  url={hubPath.user(user.username)}
+                  title={`u/${user.username} on Elonix Hub`}
+                  showLabel={false}
+                  iconSize={18}
+                  className="mb-1 inline-flex shrink-0 items-center justify-center rounded-lg border border-border p-2 text-text-secondary hover:bg-hover hover:text-text-primary"
+                />
                 {!own && user.id && (
                   <button
                     type="button"
                     aria-label="More actions"
                     onClick={() => requireAuth() && openUserCard(user.id, user.username)}
-                    className="mb-1 rounded-lg border border-border p-2 text-text-secondary hover:bg-hover hover:text-text-primary"
+                    className="tap mb-1 inline-flex shrink-0 items-center justify-center rounded-lg border border-border p-2 text-text-secondary hover:bg-hover hover:text-text-primary"
                   >
                     <MoreHorizontal size={18} />
                   </button>
@@ -192,11 +200,12 @@ export default function HubProfilePage() {
             {tabs.map((t) => (
               <button
                 key={t.id}
+                type="button"
                 role="tab"
                 aria-selected={tab === t.id}
                 onClick={() => setTab(t.id)}
                 className={cx(
-                  'flex-1 rounded-xl px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                  'tap flex-1 rounded-xl px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                   tab === t.id ? 'bg-accent/20 text-accent' : 'text-text-secondary hover:bg-hover'
                 )}
               >

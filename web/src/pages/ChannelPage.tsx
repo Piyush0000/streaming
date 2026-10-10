@@ -404,8 +404,8 @@ export default function ChannelPage() {
 
   return (
     <div className="flex h-full flex-col md:flex-row">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col max-md:contents">
+        <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4 max-md:order-[-2]">
           {channel?.kind === 'voice' ? (
             <Volume2 size={18} className="shrink-0 text-text-muted" />
           ) : (
@@ -429,7 +429,7 @@ export default function ChannelPage() {
           {canOpenSettings && (
             <button
               onClick={() => setSettingsOpen(true)}
-              className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
+              className="tap ml-auto flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
               aria-label="Channel members and settings"
               aria-haspopup="dialog"
               title="Members & settings"
@@ -453,7 +453,7 @@ export default function ChannelPage() {
         )}
 
         {voiceState === 'connected' && (
-          <div className="relative flex max-h-[62vh] shrink-0 animate-slide-down flex-col gap-3 overflow-y-auto border-b border-border bg-base px-3 py-3 sm:px-4">
+          <div className="relative flex max-h-[45dvh] shrink-0 md:max-h-[62dvh] animate-slide-down flex-col gap-3 overflow-y-auto border-b border-border bg-base px-3 py-3 sm:px-4">
             <AnimatedBackground variant="grid-pulse" subtle />
             <div className="relative z-10 flex flex-col gap-3">
             <ParticipantGrid tiles={tiles} screens={screenTiles} />

@@ -560,3 +560,42 @@ html[data-tab-hidden='true'] *::after {
 .hub-light input::placeholder, .hub-light textarea::placeholder { color: #a9b8d2; }
 .hub-light a:not([class*="text-"]) { color: inherit; }
 
+
+/* ---- Readability fallbacks (appended; see index.css "Readability + mobile hardening") ---- */
+/* Gradient text is transparent + background-clip:text. Webviews that can't clip (some Instagram/Facebook
+   in-app browsers) would show NOTHING, so the solid colour is the default and the gradient is opt-in. */
+.text-gradient-anim { color: #93c5fd; -webkit-text-fill-color: currentColor; }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .text-gradient-anim { color: transparent; -webkit-text-fill-color: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .text-gradient-anim { -webkit-text-fill-color: currentColor; }
+}
+/* LIVE pill: white 10px text needs >=4.5:1 against the whole gradient. */
+.live-badge { background: linear-gradient(135deg, #dc2626, #9f1239); }
+
+/* ---- Hub / mobile QA additions ---- */
+/* Brighter accent text on the lifted hub surfaces (>= 6:1 on glass cards and accent chips). */
+.hub-light .text-accent { color: #93c5fd; }
+.hub-light .text-danger { color: #fca5a5; }
+.hub-light .text-success { color: #4ade80; }
+/* Small icon controls get a finger-sized hit area without changing layout (touch / phone widths). */
+@media (pointer: coarse), (max-width: 767px) {
+  .hit { position: relative; }
+  .hit::after { content: ''; position: absolute; inset: -9px; }
+}
+/* Sticky bars must never swallow taps meant for the page below them. */
+.hub-nav-row { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; scrollbar-width: none; }
+.hub-nav-row::-webkit-scrollbar { display: none; }
+/* Touch: holding a finger on the tape freezes it so the symbol you aim at does not slide away. */
+@media (pointer: coarse) {
+  .tape-wrap:active .tape-track { animation-play-state: paused; }
+}
+/* Disabled primary buttons: keep the label readable (opacity-faded blue + white text drops to ~2.8:1). */
+button.bg-accent:disabled, button.bg-danger:disabled {
+  background-color: #1e3a66;
+  color: #cbd5e8;
+  opacity: 1 !important;
+  cursor: not-allowed;
+}
+.cta-border:disabled { opacity: 1 !important; color: #cbd5e8; cursor: not-allowed; }

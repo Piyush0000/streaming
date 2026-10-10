@@ -3,6 +3,18 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    color-scheme: dark;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  select option,
+  select optgroup {
+    background-color: #0c1526;
+    color: #f8fafc;
+  }
+
   html,
   body,
   #root {
@@ -295,4 +307,134 @@
   .ch-animated .ch-msg { animation: none !important; }
   .ch-animated .ch-wave { opacity: 0.25; }
   .ch-drift { transform: none !important; transition: none; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Readability + mobile hardening (dark theme). Additive overrides.     */
+/* ------------------------------------------------------------------ */
+/* Accent as TEXT needs a lighter blue (blue-400: 7:1 on panel, 6.2:1 on accent-soft);
+   accent as a SOLID FILL behind white text needs a darker one (blue-600: 5.2:1). */
+.text-accent { color: #60a5fa; }
+.bg-accent { background-color: #2563eb; }
+.hover\:bg-accent-hover:hover { background-color: #1d4ed8; }
+.text-danger { color: #f87171; }
+.bg-danger { background-color: #dc2626; }
+
+/* Placeholders were the UA default grey (~4:1 on the dark fields). */
+input::placeholder,
+textarea::placeholder {
+  color: #8a9bb8;
+  opacity: 1;
+}
+
+/* Chrome/Android autofill paints a pale-yellow/white field with dark text. Keep it dark. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: #f8fafc;
+  caret-color: #f8fafc;
+  box-shadow: 0 0 0 1000px #050a17 inset;
+  transition: background-color 9999s ease-out 0s;
+}
+input, textarea, select { color: #f8fafc; }
+input[type='number'] { color-scheme: dark; -moz-appearance: textfield; }
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button { opacity: 0.8; }
+
+/* Range sliders: a thumb a finger can actually hit, on a visible track. */
+input[type='range'].range-lg {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 36px;
+  background: transparent;
+  touch-action: pan-y;
+  cursor: pointer;
+}
+input[type='range'].range-lg::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: #35496f;
+}
+input[type='range'].range-lg::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: #35496f;
+}
+input[type='range'].range-lg::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  margin-top: -10px;
+  border-radius: 9999px;
+  background: #60a5fa;
+  border: 3px solid #0c1526;
+  box-shadow: 0 0 0 1px #93c5fd;
+}
+input[type='range'].range-lg::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: #60a5fa;
+  border: 3px solid #0c1526;
+}
+
+/* Phones: 16px fields stop Android/iOS from zooming the page on focus. */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* Minimum finger target for small controls (opt in with .tap). */
+@media (pointer: coarse), (max-width: 767px) {
+  .tap {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Safe-area helpers for fixed bars on notched phones. */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+
+/* Never let the page scroll sideways. */
+html, body { overflow-x: clip; max-width: 100%; }
+
+/* Inside dialogs (modals, user card, tour) every button is a comfortable finger target on touch. */
+@media (pointer: coarse), (max-width: 767px) {
+  [role='dialog'] button,
+  [role='dialog'] [role='menuitem'] {
+    min-height: 44px;
+  }
+  [role='dialog'] button[aria-label] {
+    min-width: 44px;
+  }
+  [role='dialog'] button[aria-label],
+  [role='dialog'] button:has(> svg:only-child) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  [role='dialog'] input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  [role='dialog'] select,
+  [role='dialog'] textarea {
+    min-height: 44px;
+  }
+}
+
+/* Old Android WebViews / in-app browsers (< Chrome 108) don't know the dvh unit: fall back to vh. */
+.h-\[100dvh\] { height: 100vh; height: 100dvh; }
+.h-\[80dvh\] { height: 80vh; height: 80dvh; }
+.max-h-\[92dvh\] { max-height: 92vh; max-height: 92dvh; }
+.max-h-\[45dvh\] { max-height: 45vh; max-height: 45dvh; }
+@media (min-width: 768px) {
+  .md\:max-h-\[62dvh\] { max-height: 62vh; max-height: 62dvh; }
+}
+@media (min-width: 1024px) {
+  .lg\:h-auto { height: auto; }
 }

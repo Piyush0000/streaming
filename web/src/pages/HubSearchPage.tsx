@@ -40,7 +40,7 @@ function ResultState({ items, failed, retry, empty }: { items: unknown[] | null;
     return (
       <div role="alert" className="glass rounded-2xl p-6 text-center">
         <p className="mb-3 text-sm text-text-secondary">Search failed.</p>
-        <button onClick={retry} className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-hover">
+        <button type="button" onClick={retry} className="tap inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-hover">
           <RefreshCw size={14} /> Retry
         </button>
       </div>
@@ -105,7 +105,7 @@ function UserResults({ q, token, enabled }: { q: string; token: string | null; e
         <ul className="glass divide-y divide-border/60 rounded-2xl">
           {r.items.map((u) => (
             <li key={u.id || u.username}>
-              <Link to={hubPath.user(u.username)} className="flex items-center gap-3 p-3 hover:bg-hover/50">
+              <Link to={hubPath.user(u.username)} className="tap flex items-center gap-3 p-3 hover:bg-hover/50">
                 <Avatar name={u.username} src={u.avatarUrl} preset={u.avatarPreset} size={36} />
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-bold">{u.displayName}</span>
@@ -139,11 +139,12 @@ export default function HubSearchPage() {
         {tabs.map(([id, label]) => (
           <button
             key={id}
+            type="button"
             role="tab"
             aria-selected={tab === id}
             onClick={() => setTab(id)}
             className={cx(
-              'flex-1 rounded-xl px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+              'tap flex-1 rounded-xl px-2 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
               tab === id ? 'bg-accent/20 text-accent' : 'text-text-secondary hover:bg-hover'
             )}
           >

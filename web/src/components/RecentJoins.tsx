@@ -23,7 +23,7 @@ export default function RecentJoins({ className, defaultOpen = true }: { classNa
       <button
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-secondary hover:text-text-primary"
+        className="flex min-h-[44px] w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-secondary hover:text-text-primary"
       >
         <UserPlus size={14} className="text-accent" />
         <span className="flex-1">Recent joins</span>

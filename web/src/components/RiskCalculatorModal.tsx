@@ -24,7 +24,7 @@ function Field({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-invalid={!!error}
-          className="w-full rounded-md border border-border bg-base px-3 py-2 text-sm text-text-primary outline-none focus:border-accent"
+          className="min-h-[44px] w-full rounded-md border border-border bg-base px-3 py-2 text-sm text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent"
         />
         {suffix && (
           <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-text-muted">{suffix}</span>

@@ -45,7 +45,7 @@ export default function ConfirmButton({
         disabled={disabled || busy}
         aria-label={ariaLabel}
         className={cx(
-          'inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-danger/15 hover:text-danger disabled:cursor-not-allowed disabled:opacity-50',
+          'tap inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-danger/15 hover:text-danger disabled:cursor-not-allowed disabled:opacity-60',
           className
         )}
       >
@@ -61,7 +61,7 @@ export default function ConfirmButton({
         type="button"
         onClick={() => void onConfirm()}
         disabled={busy}
-        className="inline-flex items-center gap-1.5 rounded-md bg-danger px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-danger/90 disabled:opacity-60"
+        className="tap inline-flex items-center justify-center gap-1.5 rounded-md bg-danger px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-60"
       >
         {busy && <Spinner size={12} className="text-white" />}
         {confirmLabel}
@@ -70,7 +70,7 @@ export default function ConfirmButton({
         type="button"
         onClick={() => setArmed(false)}
         disabled={busy}
-        className="rounded-md px-2.5 py-1.5 text-xs font-medium text-text-secondary hover:bg-hover hover:text-text-primary"
+        className="tap inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-hover hover:text-text-primary"
       >
         Cancel
       </button>

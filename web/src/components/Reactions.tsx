@@ -81,7 +81,7 @@ export function ReactionLayer({ items }: { items: FloatingReaction[] }) {
 
 export function ReactionBar({ onReact }: { onReact: (kind: ReactionKind) => void }) {
   return (
-    <div role="group" aria-label="Reactions" className="glass mx-auto flex w-fit items-center gap-1 rounded-full px-2 py-1.5">
+    <div role="group" aria-label="Reactions" className="glass mx-auto flex w-fit items-center gap-1 rounded-full px-2 py-1">
       {KINDS.map(({ kind, label, color, Icon }) => (
         <button
           key={kind}
@@ -89,7 +89,7 @@ export function ReactionBar({ onReact }: { onReact: (kind: ReactionKind) => void
           onClick={() => onReact(kind)}
           title={label}
           aria-label={label}
-          className="react-btn flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          className="react-btn flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         >
           <Icon size={18} color={color} fill={kind === 'heart' || kind === 'fire' ? color : 'none'} />
         </button>

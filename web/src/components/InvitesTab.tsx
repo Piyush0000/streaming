@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import type { Channel, ChannelInvite, InviteStatus } from '@streaming/shared-types';
-import { Check, Copy, Link2, Plus, Trash2 } from 'lucide-react';
+import { Check, Copy, Link2, Plus, Share2, Trash2 } from 'lucide-react';
+import { shareLink } from '../lib/share';
 import { createInvite, inviteUrl, listInvites, revokeInvite } from '../lib/channels';
 import { copyText } from '../lib/clipboard';
 import { useSession } from '../context/SessionContext';
@@ -24,7 +25,7 @@ const STATUS_STYLE: Record<InviteStatus, string> = {
 const STATUS_LABEL: Record<InviteStatus, string> = { active: 'Active', expired: 'Expired', exhausted: 'Used up' };
 
 const fieldCls =
-  'rounded-lg border border-border bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent';
+  'min-h-[44px] rounded-lg border border-border bg-base px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent';
 
 function formatExpiry(iso: string, status: InviteStatus): string {
   const when = new Date(iso);
@@ -104,6 +105,18 @@ export default function InvitesTab({ channel }: { channel: Channel }) {
     copyTimer.current = window.setTimeout(() => setCopiedToken(null), 2000);
   }
 
+  async function handleShare(inviteToken: string) {
+    const url = inviteUrl(inviteToken);
+    const result = await shareLink({ url, title: `Join #${channel.name} on Elonix`, text: `Join #${channel.name} on Elonix` });
+    if (result === 'copied') {
+      setCopiedToken(inviteToken);
+      window.clearTimeout(copyTimer.current);
+      copyTimer.current = window.setTimeout(() => setCopiedToken(null), 2000);
+    } else if (result === 'failed') {
+      setActionError(`Could not share automatically. Copy the link shown below: ${url}`);
+    }
+  }
+
   async function handleRevoke(inviteToken: string) {
     setRevoking(inviteToken);
     setActionError(null);
@@ -164,7 +177,7 @@ export default function InvitesTab({ channel }: { channel: Channel }) {
         <button
           type="submit"
           disabled={creating}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60 sm:w-fit"
+          className="tap flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60 sm:w-fit"
         >
           {creating ? <Spinner size={14} className="text-white" /> : <Plus size={15} aria-hidden />}
           Create invite
@@ -187,7 +200,7 @@ export default function InvitesTab({ channel }: { channel: Channel }) {
         {!loading && loadError && (
           <div className="flex flex-col items-start gap-2">
             <ErrorBanner message={loadError} />
-            <button onClick={() => void load()} className="text-sm font-medium text-accent hover:underline">
+            <button onClick={() => void load()} className="inline-flex min-h-[44px] items-center text-sm font-medium text-accent hover:underline">
               Try again
             </button>
           </div>
@@ -220,23 +233,32 @@ export default function InvitesTab({ channel }: { channel: Channel }) {
                     </span>
                     <span className="text-xs text-text-muted">{formatExpiry(inv.expiresAt, inv.status)}</span>
                   </div>
-                  <p className="mt-1.5 break-all rounded bg-base px-2 py-1 font-mono text-xs text-text-secondary" aria-label="Invite link">
+                  <p className="mt-1.5 select-all break-all rounded bg-base px-2 py-1.5 font-mono text-xs text-text-secondary" aria-label="Invite link">
                     {inviteUrl(inv.token)}
                   </p>
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                     <span className="text-xs text-text-muted">by {inv.createdByUsername}</span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex flex-wrap items-center gap-1">
                       {inv.status === 'active' && (
                         <button
                           type="button"
                           onClick={() => void handleCopy(inv.token)}
                           className={cx(
-                            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors',
+                            'tap inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
                             copied ? 'bg-success/15 text-success' : 'bg-hover text-text-primary hover:bg-border'
                           )}
                         >
                           {copied ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}
                           <span aria-live="polite">{copied ? 'Copied' : 'Copy link'}</span>
+                        </button>
+                      )}
+                      {inv.status === 'active' && typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+                        <button
+                          type="button"
+                          onClick={() => void handleShare(inv.token)}
+                          className="tap inline-flex items-center gap-1.5 rounded-md bg-hover px-3 py-1.5 text-xs font-semibold text-text-primary transition-colors hover:bg-border"
+                        >
+                          <Share2 size={13} aria-hidden /> Share
                         </button>
                       )}
                       <ConfirmButton

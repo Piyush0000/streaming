@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Bookmark, ExternalLink, Flag, MessageSquare, MoreHorizontal, Pin, Share2, Trash2, X } from 'lucide-react';
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Bookmark, ExternalLink, Flag, MessageSquare, MoreHorizontal, Pin, Trash2, X } from 'lucide-react';
 import { hubApi, hubPath, linkHost, timeAgo, type HubPost } from '../../lib/hub';
 import { cx } from '../../lib/format';
 import { markdownToPlain } from '../../lib/markdown';
-import { copyText } from '../../lib/clipboard';
 import { useToast } from '../../context/ToastContext';
 import PostBadges from './PostBadges';
+import ShareButton from './ShareButton';
 import Markdown from './Markdown';
 import VoteColumn, { useVote } from './VoteColumn';
 import UserLink, { AuthorAvatar } from './UserLink';
@@ -49,7 +49,7 @@ function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: ()
         autoFocus
         onClick={onClose}
         aria-label="Close preview"
-        className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+        className="tap absolute right-4 top-4 inline-flex items-center justify-center rounded-full bg-white/20 p-2 text-white hover:bg-white/30"
       >
         <X size={20} />
       </button>
@@ -60,6 +60,7 @@ function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: ()
 
 export default function PostCard({ post: initial, token, requireAuth, onDeleted, view = 'card', detail = false }: Props) {
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [post, setPost] = useState(initial);
   const [menu, setMenu] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -80,7 +81,8 @@ export default function PostCard({ post: initial, token, requireAuth, onDeleted,
 
   useEffect(() => {
     if (!menu) return;
-    const close = (e: MouseEvent) => {
+    // pointerdown (not mousedown): iOS/in-app browsers don't synthesize mouse events for taps on non-interactive areas.
+    const close = (e: PointerEvent) => {
       if (!menuRef.current?.contains(e.target as Node)) {
         setMenu(false);
         setConfirmDelete(false);
@@ -89,10 +91,10 @@ export default function PostCard({ post: initial, token, requireAuth, onDeleted,
     const esc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setMenu(false);
     };
-    document.addEventListener('mousedown', close);
+    document.addEventListener('pointerdown', close);
     document.addEventListener('keydown', esc);
     return () => {
-      document.removeEventListener('mousedown', close);
+      document.removeEventListener('pointerdown', close);
       document.removeEventListener('keydown', esc);
     };
   }, [menu]);
@@ -111,11 +113,6 @@ export default function PostCard({ post: initial, token, requireAuth, onDeleted,
     } finally {
       savingRef.current = false;
     }
-  }
-
-  async function share() {
-    const ok = await copyText(`${window.location.origin}${hubPath.post(post.id)}`);
-    showToast(ok ? 'Link copied' : 'Could not copy link', ok ? 'success' : 'error');
   }
 
   async function del() {
@@ -155,11 +152,19 @@ export default function PostCard({ post: initial, token, requireAuth, onDeleted,
     }
   }
 
+  // Tapping the body of a feed card opens the thread (small links/buttons inside keep their own action).
+  function openFromCard(e: ReactMouseEvent<HTMLElement>) {
+    if (detail || e.defaultPrevented) return;
+    if ((e.target as HTMLElement).closest('a,button,input,textarea,select,label,[role=menu],[role=dialog]')) return;
+    if (window.getSelection()?.toString()) return;
+    navigate(hubPath.post(post.id));
+  }
+
   const host = linkHost(post.linkUrl);
   const compact = view === 'compact' && !detail;
-  const itemCls = 'flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-hover focus-visible:bg-hover focus-visible:outline-none';
+  const itemCls = 'flex min-h-[44px] w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-hover focus-visible:bg-hover focus-visible:outline-none';
   const actionCls =
-    'inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-text-secondary transition-colors hover:bg-hover hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+    'tap inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-text-secondary transition-colors hover:bg-hover hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
 
   const title = detail ? (
     <h1 className="break-words text-lg font-bold leading-snug text-text-primary sm:text-xl">{post.title}</h1>
@@ -223,7 +228,11 @@ export default function PostCard({ post: initial, token, requireAuth, onDeleted,
   const thumb = compact && post.type === 'image' && post.imageUrl && !imgFailed ? post.imageUrl : null;
 
   return (
-    <article id={`post-${post.id}`} className="glass glass-glow flex gap-2 overflow-hidden rounded-2xl p-2.5 sm:gap-3 sm:p-3">
+    <article
+      id={`post-${post.id}`}
+      onClick={openFromCard}
+      className={cx('glass glass-glow relative flex gap-2 rounded-2xl p-2.5 sm:gap-3 sm:p-3', menu && 'z-30', !detail && 'cursor-pointer')}
+    >
       <div className="shrink-0 pt-0.5">
         <VoteColumn score={vote.score} myVote={vote.myVote} onUp={() => vote.cast(1)} onDown={() => vote.cast(-1)} size={compact ? 'sm' : 'md'} />
       </div>
@@ -272,16 +281,18 @@ export default function PostCard({ post: initial, token, requireAuth, onDeleted,
             <Bookmark size={15} className={cx(post.saved && 'fill-accent')} />
             <span className="hidden sm:inline">{post.saved ? 'Saved' : 'Save'}</span>
           </button>
-          <button type="button" onClick={() => void share()} className={actionCls}>
-            <Share2 size={15} />
-            <span className="hidden sm:inline">Share</span>
-          </button>
+          <ShareButton
+            url={hubPath.post(post.id)}
+            title={post.title || 'Elonix Hub post'}
+            text={post.title || undefined}
+            className={actionCls}
+          />
           <div className="relative" ref={menuRef}>
             <button type="button" onClick={() => setMenu((m) => !m)} aria-label="Post options" aria-haspopup="menu" aria-expanded={menu} className={actionCls}>
               <MoreHorizontal size={16} />
             </button>
             {menu && (
-              <div role="menu" className="absolute left-0 z-20 mt-1 w-44 animate-pop-in rounded-lg border border-border bg-panel py-1 shadow-2xl">
+              <div role="menu" className="absolute right-0 z-20 mt-1 w-48 max-w-[calc(100vw-2rem)] animate-pop-in rounded-lg border border-border bg-panel py-1 shadow-2xl">
                 {post.mine ? (
                   <>
                     <button role="menuitem" type="button" onClick={() => void pin()} className={itemCls}>
@@ -328,10 +339,10 @@ export default function PostCard({ post: initial, token, requireAuth, onDeleted,
               className="w-full rounded-lg border border-border bg-base px-3 py-2 text-sm outline-none focus:border-accent"
             />
             <div className="mt-2 flex justify-end gap-2">
-              <button type="button" onClick={() => setReporting(false)} className="rounded-lg px-3 py-1.5 text-sm text-text-secondary hover:bg-hover">
+              <button type="button" onClick={() => setReporting(false)} className="tap rounded-lg px-4 py-2 text-sm text-text-secondary hover:bg-hover">
                 Cancel
               </button>
-              <button type="button" onClick={() => void sendReport()} className="rounded-lg bg-danger px-3 py-1.5 text-sm font-semibold text-white">
+              <button type="button" onClick={() => void sendReport()} className="tap rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white">
                 Report
               </button>
             </div>

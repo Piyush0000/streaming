@@ -286,7 +286,7 @@ export default function ChannelSettingsTab({
           <button
             type="submit"
             disabled={deleting || confirmName !== channel.name}
-            className="flex w-fit items-center gap-2 rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex w-fit items-center gap-2 rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {deleting && <Spinner size={14} className="text-white" />}
             {deleting ? 'Deleting…' : 'Delete this channel'}

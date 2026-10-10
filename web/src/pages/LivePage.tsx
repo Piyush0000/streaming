@@ -31,7 +31,7 @@ export default function LivePage() {
           <div className="ml-auto flex items-center gap-2">
             <button
               onClick={() => refresh()}
-              className="rounded-lg p-2 text-text-secondary hover:bg-hover hover:text-text-primary"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-text-secondary hover:bg-hover hover:text-text-primary"
               aria-label="Refresh live streams"
               title="Refresh"
             >
@@ -39,7 +39,7 @@ export default function LivePage() {
             </button>
             <button
               onClick={openGoLive}
-              className="cta-border flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white" style={{ ['--cta-fill' as string]: '#be123c' }}
+              className="cta-border tap flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white" style={{ ['--cta-fill' as string]: '#be123c' }}
             >
               <Radio size={15} /> Go live
             </button>
@@ -59,7 +59,7 @@ export default function LivePage() {
             >
               <button
                 onClick={openGoLive}
-                className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
+                className="tap inline-flex items-center justify-center rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
               >
                 Start a stream
               </button>
@@ -93,7 +93,7 @@ export default function LivePage() {
 
         <Link
           to="/guidelines"
-          className="flex w-fit items-center gap-1.5 text-xs text-text-muted hover:text-accent"
+          className="flex min-h-[44px] w-fit items-center gap-1.5 text-xs text-text-secondary hover:text-accent"
         >
           <ShieldCheck size={13} /> Community guidelines
         </Link>

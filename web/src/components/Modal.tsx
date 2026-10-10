@@ -59,8 +59,10 @@ export default function Modal({
     const dialog = dialogRef.current;
     if (dialog && !dialog.contains(document.activeElement)) {
       // Prefer a field/body control over the header's close button.
-      const body = dialog.querySelector<HTMLElement>(`[data-modal-body] :is(${FOCUSABLE.replace(/, /g, ',')})`);
-      (body ?? dialog.querySelector<HTMLElement>(FOCUSABLE) ?? dialog).focus();
+      // On touch screens focusing a field pops the keyboard and hides the dialog: focus the dialog itself.
+      const touch = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+      const body = touch ? null : dialog.querySelector<HTMLElement>(`[data-modal-body] :is(${FOCUSABLE.replace(/, /g, ',')})`);
+      (body ?? (touch ? dialog : dialog.querySelector<HTMLElement>(FOCUSABLE) ?? dialog)).focus();
     }
     return () => {
       if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus();
@@ -112,7 +114,7 @@ export default function Modal({
         aria-labelledby={titleId}
         tabIndex={-1}
         className={cx(
-          'flex max-h-[92dvh] w-full flex-col rounded-t-xl border bg-panel shadow-2xl outline-none sm:rounded-xl',
+          'flex max-h-[92dvh] w-full flex-col rounded-t-xl border bg-panel pb-safe shadow-2xl outline-none sm:rounded-xl sm:pb-0',
           closing ? 'animate-pop-out' : 'animate-pop-in',
           size === 'sm' && 'sm:max-w-sm',
           size === 'md' && 'sm:max-w-md',
@@ -123,14 +125,14 @@ export default function Modal({
         )}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+        <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3 sm:py-4">
           <h2 id={titleId} className="min-w-0 truncate text-base font-semibold text-text-primary">
             {title}
           </h2>
           {dismissible && (
             <button
               onClick={requestClose}
-              className="shrink-0 rounded p-1 text-text-secondary hover:bg-hover hover:text-text-primary"
+              className="-mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-text-secondary hover:bg-hover hover:text-text-primary sm:mr-0 sm:h-8 sm:w-8"
               aria-label="Close"
             >
               <X size={18} />

@@ -28,6 +28,9 @@ export function usePolled<T>(fn: (signal: AbortSignal) => Promise<T>, baseMs: nu
     let failures = 0;
     let timer: number | undefined;
     let ctrl: AbortController | null = null;
+    // Some in-app webviews report document.hidden=true at load and never fire visibilitychange:
+    // always do the first fetch, and only skip *later* polls while hidden.
+    let first = true;
 
     const schedule = () => {
       window.clearTimeout(timer);
@@ -36,7 +39,9 @@ export function usePolled<T>(fn: (signal: AbortSignal) => Promise<T>, baseMs: nu
     };
     const run = async () => {
       window.clearTimeout(timer);
-      if (cancelled || document.hidden) return;
+      if (cancelled) return;
+      if (document.hidden && !first) return;
+      first = false;
       ctrl?.abort();
       ctrl = new AbortController();
       try {

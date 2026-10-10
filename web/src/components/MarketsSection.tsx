@@ -37,7 +37,7 @@ export default function MarketsSection({
       <button
         onClick={toggle}
         aria-expanded={open}
-        className="flex w-full items-center gap-1 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-text-muted hover:text-text-primary"
+        className="flex w-full items-center gap-1 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-text-muted max-md:min-h-[44px] hover:text-text-primary"
       >
         {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         Markets
@@ -50,14 +50,14 @@ export default function MarketsSection({
             <p className="px-2 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Tools</p>
             <button
               onClick={onOpenCalculator}
-              className="nav-item flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
+              className="nav-item flex w-full items-center gap-2 max-md:min-h-[44px] rounded-md px-2 py-1.5 text-left text-sm text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
             >
               <Calculator size={14} className="shrink-0 text-text-muted" />
               Position size calculator
             </button>
             <button
               onClick={onNavigateHub}
-              className="nav-item flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
+              className="nav-item flex w-full items-center gap-2 max-md:min-h-[44px] rounded-md px-2 py-1.5 text-left text-sm text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
             >
               <Compass size={14} className="shrink-0 text-text-muted" />
               Hub: trade feed
@@ -86,7 +86,7 @@ function Tickers() {
     return (
       <div className="px-2 text-xs text-text-muted">
         <p className="text-danger">{error ?? 'Prices unavailable.'}</p>
-        <button onClick={reload} className="mt-1 flex items-center gap-1 font-medium text-accent hover:underline">
+        <button onClick={reload} className="mt-1 flex min-h-[44px] items-center gap-1 font-medium text-accent hover:underline md:min-h-0">
           <RefreshCw size={11} /> Retry
         </button>
       </div>
@@ -146,7 +146,7 @@ function TickerRow({ t, expanded, onToggle }: { t: MarketTicker; expanded: boole
       <button
         onClick={onToggle}
         aria-expanded={expanded}
-        className="nav-item flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm transition-colors hover:bg-hover"
+        className="nav-item flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm transition-colors max-md:min-h-[44px] hover:bg-hover"
       >
         <span className="w-11 shrink-0 font-medium text-text-primary">{baseSymbol(t.symbol)}</span>
         <span
@@ -205,7 +205,7 @@ function Signals() {
       ) : !data ? (
         <div className="px-2 text-xs text-text-muted">
           <p className="text-danger">{error ?? 'Signals unavailable.'}</p>
-          <button onClick={reload} className="mt-1 flex items-center gap-1 font-medium text-accent hover:underline">
+          <button onClick={reload} className="mt-1 flex min-h-[44px] items-center gap-1 font-medium text-accent hover:underline md:min-h-0">
             <RefreshCw size={11} /> Retry
           </button>
         </div>
@@ -225,7 +225,7 @@ function Signals() {
             {latest.map((s) => (
               <li
                 key={s.id}
-                className={cx('flex items-center gap-2 rounded-md px-2 py-1 text-sm', s.stale && 'opacity-60')}
+                className={cx('flex items-center gap-2 rounded-md px-2 py-1 text-sm', s.stale && 'italic')}
                 title={s.strategy ? `${s.strategy}${s.source ? ` (${s.source})` : ''}` : undefined}
               >
                 <span className={cx('w-12 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-bold', ACTION_STYLE[s.action])}>
@@ -251,7 +251,7 @@ function Signals() {
         href={BOT_URL}
         target="_blank"
         rel="noopener noreferrer"
-        className="mx-2 mt-1 inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"
+        className="mx-2 mt-1 inline-flex min-h-[44px] items-center gap-1 text-xs font-medium text-accent hover:underline md:min-h-0"
       >
         Open Elonix trading bot <ExternalLink size={11} />
       </a>

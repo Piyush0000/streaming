@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { FollowStats, Stream } from '@streaming/shared-types';
-import { LogOut, Square, ShieldCheck, UserCheck, UserPlus } from 'lucide-react';
+import { LogOut, Share2, Square, ShieldCheck, UserCheck, UserPlus } from 'lucide-react';
+import { shareLink, shareToastMessage } from '../lib/share';
+import { useToast } from '../context/ToastContext';
 import Avatar from './Avatar';
 import Modal from './Modal';
 import Spinner from './Spinner';
@@ -46,6 +48,13 @@ export default function StreamHeader({
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [ending, setEnding] = useState(false);
   const [endError, setEndError] = useState<string | null>(null);
+  const { showToast } = useToast();
+
+  async function handleShare() {
+    const url = window.location.href;
+    const t = shareToastMessage(await shareLink({ url, title: stream.title, text: `Join "${stream.title}" live on Elonix` }), url);
+    if (t) showToast(t.message, t.kind);
+  }
 
   async function handleEnd() {
     setEnding(true);
@@ -73,18 +82,21 @@ export default function StreamHeader({
         <h1 className="min-w-0 flex-1 basis-40 truncate text-base font-semibold text-text-primary" title={stream.title}>
           {stream.title}
         </h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {canEnd && live && (
             <button
               onClick={() => setConfirmEnd(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-danger px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
+              className="tap flex items-center gap-1.5 rounded-lg bg-danger px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
             >
               <Square size={13} fill="currentColor" /> End stream
             </button>
           )}
+          <button type="button" onClick={() => void handleShare()} aria-label="Share this stream" className="tap flex items-center gap-1.5 rounded-lg bg-hover px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-border">
+            <Share2 size={14} /> Share
+          </button>
           <button
             onClick={onLeave}
-            className="flex items-center gap-1.5 rounded-lg bg-hover px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-border"
+            className="tap flex items-center gap-1.5 rounded-lg bg-hover px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-border"
           >
             <LogOut size={14} /> Leave
           </button>
@@ -95,7 +107,7 @@ export default function StreamHeader({
         <span className="flex min-w-0 items-center gap-2">
           <Avatar name={stream.hostUsername} size={24} glow={live} gradientRing={live} />
           <span className="truncate font-medium text-text-primary">{stream.hostUsername}</span>
-          <span className="text-text-muted">host</span>
+          <span className="text-text-secondary">host</span>
         </span>
         {follow && (
           <span className="text-text-muted">
@@ -107,7 +119,7 @@ export default function StreamHeader({
             onClick={onToggleFollow}
             disabled={followBusy}
             aria-pressed={follow.isFollowing}
-            className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors disabled:opacity-60 ${
+            className={`tap flex items-center gap-1 rounded-md px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-60 ${
               follow.isFollowing ? 'bg-hover text-text-primary hover:bg-border' : 'cta-border text-white'
             }`}
           >
@@ -128,7 +140,7 @@ export default function StreamHeader({
             </span>
           </span>
         )}
-        <Link to="/guidelines" className="ml-auto flex items-center gap-1 text-text-muted hover:text-accent">
+        <Link to="/guidelines" className="ml-auto flex min-h-[44px] items-center gap-1 text-text-secondary hover:text-accent md:min-h-0">
           <ShieldCheck size={13} /> Guidelines
         </Link>
       </div>
@@ -145,7 +157,7 @@ export default function StreamHeader({
             </p>
             {endError && <ErrorBanner message={endError} />}
             <div className="flex justify-end gap-2">
-              <button onClick={() => setConfirmEnd(false)} disabled={ending} className="rounded-lg px-4 py-2 text-sm text-text-secondary hover:bg-hover disabled:opacity-50">
+              <button onClick={() => setConfirmEnd(false)} disabled={ending} className="rounded-lg px-4 py-2 text-sm text-text-secondary hover:bg-hover disabled:opacity-60">
                 Keep streaming
               </button>
               <button

@@ -55,8 +55,8 @@ export default function VoicePanel({
   const peerRows = useLeavingList(remotePeers, (p) => p.peerId, 180);
 
   return (
-    <div className="glass flex w-full flex-col border-x-0 border-t-0 md:w-72 md:shrink-0 md:border-b-0 md:border-l">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+    <div className="glass flex w-full flex-col border-x-0 border-t-0 max-md:order-[-1] md:w-72 md:shrink-0 md:border-b-0 md:border-l">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-2 md:py-3">
         <Volume2 size={16} className="text-text-muted" />
         <h2 className="text-sm font-semibold text-text-primary">Voice</h2>
         {!!maxParticipants && (
@@ -75,14 +75,14 @@ export default function VoicePanel({
         )}
       </div>
 
-      <div className="flex flex-col gap-3 px-4 py-3">
+      <div className="flex flex-col gap-3 px-4 py-2 md:py-3">
         {voiceError && <ErrorBanner message={voiceError} onDismiss={onDismissError} />}
 
         {!connected && (
           <button
             onClick={onJoin}
             disabled={connecting}
-            className="cta-border flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="cta-border flex min-h-[44px] items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             {connecting ? (
               <>
@@ -97,7 +97,7 @@ export default function VoicePanel({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
+      <div className={cx("flex-1 overflow-y-auto px-4 pb-4", (connected || remotePeers.length === 0) && "max-md:hidden")}>
         {!connected && remotePeers.length === 0 && (
           <p className="py-4 text-center text-xs text-text-muted">Nobody's in voice right now.</p>
         )}

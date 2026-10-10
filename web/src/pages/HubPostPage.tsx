@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react';
 import { hubApi, hubPath, type HubPost } from '../lib/hub';
 import { ApiError } from '../lib/api';
+import { canGoBackInApp } from '../lib/nav';
 import { useHubAuth } from '../hooks/useHubAuth';
 import HubShell from '../components/hub/HubShell';
 import PostCard from '../components/hub/PostCard';
@@ -44,8 +45,8 @@ export default function HubPostPage() {
       <div>
         <button
           type="button"
-          onClick={() => (window.history.length > 1 ? navigate(-1) : navigate(hubPath.home))}
-          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-text-secondary hover:bg-hover hover:text-text-primary"
+          onClick={() => (canGoBackInApp() ? navigate(-1) : navigate(hubPath.home))}
+          className="tap inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-text-secondary hover:bg-hover hover:text-text-primary"
         >
           <ArrowLeft size={15} /> Back
         </button>
@@ -55,7 +56,7 @@ export default function HubPostPage() {
       {state === 'missing' && (
         <div className="glass rounded-2xl">
           <EmptyState character="bear" title="Post not found" body="It may have been deleted.">
-            <Link to={hubPath.home} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white">
+            <Link to={hubPath.home} className="tap inline-flex items-center rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white">
               Back to the hub
             </Link>
           </EmptyState>
@@ -64,7 +65,7 @@ export default function HubPostPage() {
       {state === 'error' && (
         <div role="alert" className="glass rounded-2xl p-6 text-center">
           <p className="mb-3 text-sm text-text-secondary">Couldn't load this post.</p>
-          <button onClick={() => setNonce((n) => n + 1)} className="rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-hover">
+          <button type="button" onClick={() => setNonce((n) => n + 1)} className="tap rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-hover">
             Retry
           </button>
         </div>

@@ -30,7 +30,7 @@ function RoundButton({
       aria-label={label}
       aria-pressed={pressed}
       className={cx(
-        'react-btn flex h-11 w-11 items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40',
+        'react-btn flex h-11 w-11 items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60',
         tone === 'danger' && 'bg-danger/20 text-danger hover:bg-danger/30',
         tone === 'active' && 'bg-accent text-white hover:bg-accent-hover',
         tone === 'neutral' && 'bg-hover text-text-primary hover:bg-border'
@@ -86,7 +86,7 @@ export default function CallControls({
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <div className="flex flex-wrap items-center justify-center gap-2 glass rounded-full px-3 py-2 shadow-[0_8px_30px_-10px_rgba(59,130,246,0.35)]">
+      <div className="glass flex flex-wrap items-center justify-center gap-2 rounded-full px-3 py-2 shadow-[0_8px_30px_-10px_rgba(59,130,246,0.35)]">
         <RoundButton label={micLabel} onClick={onToggleMute} disabled={micDisabled} tone={muted ? 'danger' : 'neutral'} pressed={muted}>
           {micState === 'starting' ? <Spinner size={16} /> : muted ? <MicOff size={18} /> : <Mic size={18} />}
         </RoundButton>
@@ -107,6 +107,13 @@ export default function CallControls({
           </RoundButton>
         )}
       </div>
+      {(!screenSupported || (screenDisabledReason && !isSharingScreen)) && (
+        <p className="max-w-xs text-center text-xs text-text-secondary">
+          {!screenSupported
+            ? "Screen sharing isn't available in this browser (most phone browsers can't share their screen)."
+            : screenDisabledReason}
+        </p>
+      )}
     </div>
   );
 }

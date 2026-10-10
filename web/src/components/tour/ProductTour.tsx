@@ -175,11 +175,17 @@ export function TourProvider({
     if (!active || !step) return;
     let cancelled = false;
 
+    let misses = 0;
     const apply = () => {
       if (cancelled) return;
       setVp({ w: window.innerWidth, h: window.innerHeight });
       const measured = measure(step.target);
+      if (measured) misses = 0;
       if (!measured) {
+        // A drawer that is still sliding in (slow phones, in-app browsers) looks like a missing target:
+        // only give up on the step after a few consecutive misses.
+        misses += 1;
+        if (misses < 4) return;
         // Target missing or off-screen: move on in the direction we were travelling.
         const ni = index + dirRef.current;
         if (ni >= steps.length) finish();

@@ -219,14 +219,16 @@ export default function LandingPage() {
           </span>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => navigate('/elonixhub')}
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-text-secondary transition-colors hover:text-text-primary"
+              className="tap rounded-lg px-3 py-2 text-sm font-semibold text-text-secondary transition-colors hover:text-text-primary"
             >
               Hub
             </button>
             <button
+              type="button"
               onClick={() => navigate('/login')}
-              className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-text-primary"
+              className="tap rounded-lg border border-border px-4 py-2 text-sm font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-text-primary"
             >
               Sign in
             </button>
@@ -273,6 +275,7 @@ export default function LandingPage() {
 
               <div className="flex animate-rise-in flex-col items-center justify-center gap-3 sm:flex-row" style={stagger(3)}>
                 <button
+                  type="button"
                   onClick={() => navigate('/login')}
                   className="cta-border group inline-flex items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-sm font-bold text-white shadow-lg transition-transform duration-300 hover:scale-105 sm:text-base"
                 >
@@ -391,6 +394,7 @@ export default function LandingPage() {
                   traders.
                 </p>
                 <button
+                  type="button"
                   onClick={() => navigate('/login')}
                   className="cta-border inline-flex items-center gap-2 rounded-xl px-7 py-3.5 text-sm font-bold text-white shadow-lg transition-transform duration-300 hover:scale-105 sm:text-base"
                 >

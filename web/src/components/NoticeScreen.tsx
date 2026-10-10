@@ -37,7 +37,7 @@ export default function NoticeScreen({
       {children}
       <Link
         to={actionTo}
-        className="mt-5 rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
+        className="mt-5 inline-flex min-h-[44px] items-center rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
       >
         {actionLabel}
       </Link>
